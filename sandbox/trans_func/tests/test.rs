@@ -1,4 +1,4 @@
-extern crate PSTL;
+extern crate trans_func;
 
 #[cfg(test)]
 mod tests {
@@ -11,7 +11,7 @@ mod tests {
         let mut data: [u64; 64] = [0x0000000000000001; 64];
         let mut out: [u64; 64] = [0x0000000000000000; 64];
 
-        PSTL::orthogonalize(&mut data, &mut out);
+        trans_func::orthogonalize(&mut data, &mut out);
         for i in 0..63 {
             assert_eq!(out[i], 0x0000000000000000);
         }
@@ -27,7 +27,7 @@ mod tests {
         let mut data: [u64; 64] = [0x1000000000000000; 64];
         let mut out: [u64; 64] = [0x0000000000000000; 64];
 
-        PSTL::orthogonalize(&mut data, &mut out);
+        trans_func::orthogonalize(&mut data, &mut out);
 
         assert_eq!(out[0], 0x0000000000000000);
         assert_eq!(out[1], 0x0000000000000000);
@@ -46,7 +46,7 @@ mod tests {
         let mut data: [u64; 64] = [0xFFFFFFFFFFFFFFFF; 64];
         let mut out: [u64; 64] = [0x0000000000000000; 64];
 
-        PSTL::orthogonalize(&mut data, &mut out);
+        trans_func::orthogonalize(&mut data, &mut out);
 
         for i in 0..64 {
             assert_eq!(out[i], 0xFFFFFFFFFFFFFFFF);
