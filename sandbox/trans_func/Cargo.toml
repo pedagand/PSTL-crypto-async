@@ -1,7 +1,0 @@
-[package]
-name = "trans_func"
-version = "0.1.0"
-authors = ["GUO NING <ai535463858@gmail.com>"]
-edition = "2018"
-
-[dependencies]
