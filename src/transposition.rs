@@ -28,23 +28,3 @@ fn transposer(data : &mut [u64;64]) {
             }
         }
 }
-
-
-
-
-fn main() {
-    let mut data : [u64; 64] = [0u64;64];
-    for i in 0..64 {
-        data[i] = 0b1011111110<<54;
-    }
-    println!("Avant transposer : ");
-    for i in 0..10 {
-        println!("{} : {:b}",i, data[i]);
-    }
-    transposer(&mut data);
-    println!("Après transposer : ");
-    for i in 0..10 {
-        println!("{} : {:b}",i, data[i]);
-    }
-
-}
