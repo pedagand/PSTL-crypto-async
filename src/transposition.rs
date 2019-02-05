@@ -4,7 +4,7 @@ static MASK_L : [u64; 6] =  [
 	0xf0f0f0f0f0f0f0f0,
 	0xff00ff00ff00ff00,
 	0xffff0000ffff0000,
-    0xffffffff00000000];
+        0xffffffff00000000];
 
 static MASK_R : [u64; 6] =  [
 	0x5555555555555555,
@@ -12,7 +12,7 @@ static MASK_R : [u64; 6] =  [
 	0x0f0f0f0f0f0f0f0f,
 	0x00ff00ff00ff00ff,
 	0x0000ffff0000ffff,
-    0x00000000ffffffff];
+        0x00000000ffffffff];
 
 fn transpose(data : &mut [u64;64]) {
         for i in 0..6 {
@@ -25,7 +25,7 @@ fn transpose(data : &mut [u64;64]) {
                     let y : u64 = data[j+n+k] & MASK_R[i];
 
                     data[j+k] = u |(x >> n);
-                    data[j+n+k] = (v<< n) | y;
+                    data[j+n+k] = (v << n) | y;
                 }
             }
         }
