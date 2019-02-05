@@ -1,7 +1,0 @@
-[package]
-name = "Matrice"
-version = "0.1.0"
-authors = ["traore"]
-edition = "2018"
-
-[dependencies]
