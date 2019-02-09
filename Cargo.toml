@@ -1,0 +1,12 @@
+[package]
+name = "crypto_async"
+version = "0.1.0"
+authors = ["Pierre-Evariste Dagand <pedagand@lip6.fr>",
+           "Youssra Benkour <Youssrabenkour@gmail.com>",
+           "Adel El Amraou <adel.el_amraoui@etu.upmc.fr>", 
+           "Yohanan Harroch <harrochy@yahoo.fr>",
+           "Guo Ning <ai535463858@gmail.com>", 
+           "Djadji Traore <djadji.traore75@gmail.com>"]
+edition = "2018"
+
+[dependencies]
