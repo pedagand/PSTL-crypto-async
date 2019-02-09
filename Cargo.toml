@@ -8,5 +8,14 @@ authors = ["Pierre-Evariste Dagand <pedagand@lip6.fr>",
            "Guo Ning <ai535463858@gmail.com>", 
            "Djadji Traore <djadji.traore75@gmail.com>"]
 edition = "2018"
+build = "build.rs"
 
-[dependencies]
+[dev-dependencies]
+criterion = "0.2"
+
+[[bench]]
+name = "benchmark_wrapper"
+harness = false
+
+[build-dependencies]
+cc = "1.0"
