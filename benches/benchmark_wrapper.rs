@@ -14,10 +14,10 @@ fn wrapper_des_benchmark(c: &mut Criterion) {
         key[i as usize] = 7 * i;
     }
 
-    let  cipher: [u64; 64] = [0x000000000000000; 64];
+    let mut cipher: [u64; 64] = [0x000000000000000; 64];
 
     c.bench_function("Bench the wrapper des function", 
-                     move |b| b.iter(|| crypto_async::wrapper_des::des(plain, key, cipher)));
+                     move |b| b.iter(|| crypto_async::wrapper_des::des(plain, key, &mut cipher)));
 }
 
 criterion_group!(benches, wrapper_des_benchmark);
