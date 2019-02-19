@@ -4,7 +4,7 @@ use std::net::TcpListener;
 use web_server::ThreadPool;
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    let listener = TcpListener::bind("127.0.0.1:7870").unwrap();
     let pool = ThreadPool::new(4);
 
     for stream in listener.incoming() {
@@ -21,4 +21,6 @@ fn handle_connection(mut stream: TcpStream) {
     stream.read(&mut buffer).unwrap();
     println!("Request: {}", String::from_utf8_lossy(&buffer[..]).to_ascii_lowercase());
 
+    stream.write(&buffer).unwrap();
+    stream.flush().unwrap();
 }
