@@ -27,7 +27,7 @@ fn main() {
 }
 
 
-pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: Arc<Mutex<[u64; 64]>>, sen: Arc<Mutex<mpsc::Sender<u64>>>, rec: Arc<Mutex<mpsc::Receiver<u64>>>) {
+pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: Arc<Mutex<[u64; 64]>>, sen: Arc<Mutex<mpsc::Sender<()>>>, rec: Arc<Mutex<mpsc::Receiver<()>>>) {
     let mut buffer = [0; 512];
     stream.read(&mut buffer).unwrap();
     let rand_u64: u64 = rand::thread_rng().gen();
@@ -44,24 +44,31 @@ pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: A
     std::mem::drop(cpt);
 
     if number == 63 {
-        let buff = buf.lock().unwrap();
+        let mut buff = buf.lock().unwrap();
         let mut result = key;
 
         for i in 0..64 {
-            result ^= buff[i];
+            buff[i] ^= result;
         }
 
         let res: String = result.to_string();
         println!("Result calculated {} ", result);
+        std::mem::drop(buff);
         for _ in 0..64 {
-            let sender = sen.lock().unwrap().send(result).unwrap();
+            let sender = sen.lock().unwrap().send(()).unwrap();
         }
         stream.write(res.as_bytes()).unwrap();
     } else {
         let received = rec.lock().unwrap().recv().unwrap();
-        let result: String = received.to_string();
-        stream.write(result.as_bytes()).unwrap();
-        println!("value received {} ", received);
+
+        let mut buff = buf.lock().unwrap();
+        let result = buff[number as usize];
+        std::mem::drop(buff);
+        let res: String = result.to_string();
+
+        stream.write(res.as_bytes()).unwrap();
+
+        println!("value received {} ", result);
     }
     println!("goodbye n°{} ", number);
 }
