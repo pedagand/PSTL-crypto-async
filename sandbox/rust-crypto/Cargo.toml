@@ -8,3 +8,8 @@ edition = "2018"
 rust-crypto = "^0.2"
 rustc-serialize = "0.3"
 rand = "0.3"
+criterion = "0.2"
+
+[[bench]]
+name = "crypto_benchmark"
+harness = false
