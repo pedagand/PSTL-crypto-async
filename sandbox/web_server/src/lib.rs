@@ -8,6 +8,18 @@ pub struct ThreadPool {
     sender: mpsc::Sender<Job>,
 }
 
+#[derive(Copy, Clone)]
+pub struct Cell {
+    pub plain: u64,
+    pub key: u64,
+}
+
+impl Cell {
+    pub fn to_string(self) -> String {
+        return format!("plain {} , key {}", self.plain, self.key);
+    }
+}
+
 trait FnBox {
     fn call_box(self: Box<Self>);
 }
@@ -62,7 +74,7 @@ impl Worker {
             loop {
                 let job = receiver.lock().unwrap().recv().unwrap();
 
-                println!("Worker {} got a job; executing.", id);
+//                println!("Worker {} got a job; executing.", id);
 
                 job.call_box();
             }

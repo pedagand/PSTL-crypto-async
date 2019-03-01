@@ -1,15 +1,18 @@
 use std::io::prelude::*;
 use std::net::TcpStream;
 use std::net::TcpListener;
-use web_server::ThreadPool;
+use web_server::{ThreadPool, Cell};
 use std::sync::{Arc, Mutex, mpsc};
 use rand::prelude::*;
 
+const SIZE: usize = 64;
+
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
-    let buffer = Arc::new(Mutex::new([0x0; 64]));
-    let counter = Arc::new(Mutex::new(0));
-    let pool = ThreadPool::new(64);
+    let buffer = Arc::new(Mutex::new([Cell { plain: 0, key: 0 }; SIZE]));
+
+    let counter = Arc::new(Mutex::new(1));
+    let pool = ThreadPool::new(SIZE);
     let (sender, receiver) = mpsc::channel();
     let receiver = Arc::new(Mutex::new(receiver));
     let sender = Arc::new(Mutex::new(sender.clone()));
@@ -27,48 +30,49 @@ fn main() {
 }
 
 
-pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: Arc<Mutex<[u64; 64]>>, sen: Arc<Mutex<mpsc::Sender<()>>>, rec: Arc<Mutex<mpsc::Receiver<()>>>) {
+pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: Arc<Mutex<[Cell; SIZE]>>, sen: Arc<Mutex<mpsc::Sender<()>>>, rec: Arc<Mutex<mpsc::Receiver<()>>>) {
     let mut buffer = [0; 512];
     stream.read(&mut buffer).unwrap();
-    let rand_u64: u64 = rand::thread_rng().gen();
-    let key = rand_u64;
-    let number = 0;
+    //get the index of the first nullbyte
+    let mut j = 0;
+    for i in 0..512 {
+        if buffer[i] == 0 {
+            break;
+        } else { j += 1; }
+    }
+    let plain_string: String = String::from_utf8_lossy(&buffer[..j]).to_string();
+
+    let plain: u64 = plain_string.parse().unwrap();
+    let key = rand::thread_rng().gen();
+
     let mut cpt = counter.lock().unwrap();
     let number = *cpt;
     let mut buff = buf.lock().unwrap();
-    buff[number as usize] = key;
-    println!("random key generated {} by number  {}", key, number);
-    println!("value in the buffer {} ", buff[number as usize]);
+    let index = (number - 1) % ((SIZE as i32) - 1);
+    buff[index as usize].key = key;
+    buff[index as usize].plain = key;
     std::mem::drop(buff);
     *cpt += 1;
     std::mem::drop(cpt);
-
-    if number == 63 {
+    if (number % SIZE as i32) == 0 {
         let mut buff = buf.lock().unwrap();
-        let mut result = key;
-
-        for i in 0..64 {
-            buff[i] ^= result;
+        let result = key;
+        for i in 0..(SIZE) {
+            buff[i].key ^= result;
         }
-
-        let res: String = result.to_string();
-        println!("Result calculated {} ", result);
-        std::mem::drop(buff);
-        for _ in 0..64 {
-            let sender = sen.lock().unwrap().send(()).unwrap();
-        }
+        let res: String = buff[SIZE - 1].to_string();
         stream.write(res.as_bytes()).unwrap();
+        std::mem::drop(buff);
+        let mut cpt = counter.lock().unwrap();
+        *cpt = 1;
+        for _ in 0..(SIZE - 1) {
+            let _sender = sen.lock().unwrap().send(()).unwrap();
     } else {
-        let received = rec.lock().unwrap().recv().unwrap();
-
-        let mut buff = buf.lock().unwrap();
-        let result = buff[number as usize];
+        let _received = rec.lock().unwrap().recv().unwrap();
+        let buff = buf.lock().unwrap();
+        let index = (number - 1) % ((SIZE as i32) - 1);
+        let result = buff[index as usize];
+        stream.write(result.to_string().as_bytes()).unwrap();
         std::mem::drop(buff);
-        let res: String = result.to_string();
-
-        stream.write(res.as_bytes()).unwrap();
-
-        println!("value received {} ", result);
     }
-    println!("goodbye n°{} ", number);
 }
