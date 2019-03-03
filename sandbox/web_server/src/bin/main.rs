@@ -50,7 +50,7 @@ pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: A
     let mut buff = buf.lock().unwrap();
     let index = (number - 1) % ((SIZE as i32) - 1);
     buff[index as usize].key = key;
-    buff[index as usize].plain = key;
+    buff[index as usize].plain = plain;
     std::mem::drop(buff);
     *cpt += 1;
     std::mem::drop(cpt);
@@ -67,6 +67,7 @@ pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: A
         *cpt = 1;
         for _ in 0..(SIZE - 1) {
             let _sender = sen.lock().unwrap().send(()).unwrap();
+        }
     } else {
         let _received = rec.lock().unwrap().recv().unwrap();
         let buff = buf.lock().unwrap();
