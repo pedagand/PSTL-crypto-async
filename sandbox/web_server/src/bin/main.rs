@@ -48,7 +48,7 @@ pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: A
     let mut cpt = counter.lock().unwrap();
     let number = *cpt;
     let mut buff = buf.lock().unwrap();
-    let index = (number - 1) % ((SIZE as i32) - 1);
+    let index = (number - 1) % ((SIZE as i32));
     buff[index as usize].key = key;
     buff[index as usize].plain = plain;
     std::mem::drop(buff);
