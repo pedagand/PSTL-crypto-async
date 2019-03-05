@@ -8,7 +8,7 @@ use std::time::Duration;
 fn main() {
     let mut vec_thread = Vec::new();
     let mut vec_data = Vec::new();
-    //Send 100 requests at the same time
+    //Send 40 requests at the same time
     for _i in 0..40 {
         let handle = thread::spawn(move || {
             let mut stream = TcpStream::connect("127.0.0.1:7870").unwrap();
