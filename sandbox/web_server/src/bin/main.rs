@@ -10,11 +10,7 @@ use std::{thread, time};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let query = &args[1];
-
     let size: usize = args[1].parse().unwrap();
-    println!("size {}", size);
-
     let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
 
     let vec: Vec<Cell> = vec![Cell { plain: 0, key: 0 }; size];
@@ -41,20 +37,10 @@ fn main() {
 
 
 pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: Arc<Mutex<Vec<Cell>>>, sen: Arc<Mutex<mpsc::Sender<()>>>, rec: Arc<Mutex<mpsc::Receiver<()>>>, size: usize) {
-    let mut buffer = [0; 512];
+    let mut buffer = [0; 8];
     stream.read(&mut buffer).unwrap();
-    //get the index of the first nullbyte
-    let mut j = 0;
-    for i in 0..512 {
-        if buffer[i] == 0 {
-            break;
-        } else { j += 1; }
-    }
-    let plain_string: String = String::from_utf8_lossy(&buffer[..j]).to_string();
-
-    let plain: u64 = plain_string.parse().unwrap();
+    let plain = u64::from_be_bytes(buffer);
     let key = rand::thread_rng().gen();
-
     let mut cpt = counter.lock().unwrap();
     let number = *cpt;
     assert!(number >= 1 && number <= size as i32);
@@ -73,8 +59,7 @@ pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: A
             thread::sleep(time::Duration::from_millis(1));
         }
         assert!(buff[size - 1].plain == key ^ plain);
-        let res: String = buff[size - 1].to_string();
-        stream.write(res.as_bytes()).unwrap();
+        stream.write(&u64_to_array_of_u8(buff[size - 1].plain)).unwrap();
         std::mem::drop(buff);
         let mut cpt = counter.lock().unwrap();
         *cpt = 1;
@@ -85,9 +70,22 @@ pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: A
         let _received = rec.lock().unwrap().recv().unwrap();
         let buff = buf.lock().unwrap();
         let index = number - 1;
-        let result = buff[index as usize];
-        assert!(result.plain == key ^ plain);
-        stream.write(result.to_string().as_bytes()).unwrap();
+        let result = buff[index as usize].plain;
+        assert!(result == key ^ plain);
+        stream.write(&u64_to_array_of_u8(result)).unwrap();
         std::mem::drop(buff);
     }
+}
+
+
+fn u64_to_array_of_u8(x: u64) -> [u8; 8] {
+    let b1: u8 = ((x >> 56) & 0xff) as u8;
+    let b2: u8 = ((x >> 48) & 0xff) as u8;
+    let b3: u8 = ((x >> 40) & 0xff) as u8;
+    let b4: u8 = ((x >> 32) & 0xff) as u8;
+    let b5: u8 = ((x >> 24) & 0xff) as u8;
+    let b6: u8 = ((x >> 16) & 0xff) as u8;
+    let b7: u8 = ((x >> 8) & 0xff) as u8;
+    let b8: u8 = (x & 0xff) as u8;
+    return [b1, b2, b3, b4, b5, b6, b7, b8];
 }
