@@ -40,7 +40,7 @@ fn encrypt_benchmark(c: &mut Criterion) {
         Benchmark::new(
             "classic Encrypt",
             |b| b.iter(|| encrypt(INPUT, KEY)),
-        ).throughput(Throughput::Elements(INPUT.len() as u32)),
+        ).throughput(Throughput::Bytes(INPUT.len() as u32)),
     );
 
     c.bench(
@@ -48,7 +48,7 @@ fn encrypt_benchmark(c: &mut Criterion) {
         Benchmark::new(
             "x8 Encrypt",
             |b| b.iter(|| encrypt_x8(INPUT_X8, KEY)),
-        ).throughput(Throughput::Elements(INPUT_X8.len() as u32)),
+        ).throughput(Throughput::Elements(INPUT.len() as u32)),
     );
 
 }
