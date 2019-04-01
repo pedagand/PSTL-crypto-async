@@ -2,12 +2,11 @@ extern crate crypto;
 extern crate rustc_serialize;
 
 use rand::{OsRng, Rng};
-use crypto::symmetriccipher::{BlockEncryptor, BlockDecryptor, BlockEncryptorX8, BlockDecryptorX8, Encryptor};
+use crypto::symmetriccipher::{BlockEncryptor, BlockDecryptor, BlockEncryptorX8, BlockDecryptorX8};
 use crypto::aessafe::{AesSafe128Encryptor, AesSafe128Decryptor, AesSafe128EncryptorX8, AesSafe128DecryptorX8};
 use std::iter::repeat;
 use rustc_serialize::base64::*;
-use crypto::buffer::{RefReadBuffer, RefWriteBuffer};
-use crypto::blockmodes::CtrMode;
+use crypto::aes::{self, KeySize};
 
 
 fn main() {
@@ -37,10 +36,14 @@ fn main() {
     let mut ctr_val : Vec<u8> = repeat(0u8).take(16).collect();
     random.fill_bytes(&mut ctr_val[..]);
 
-    let ctr_input : [u8;27] = [1;27];
-    let mut ctr_output : [u8;27] =[0;27];
-    ctr_encryption(&ctr_input, &mut ctr_output, &key, ctr_val);
-    println!("Ctr encryption : {:?}", ctr_output);
+    let _ctr_input : [u8;16] = [1;16];
+    let mut output : [u8;16] =[0;16];
+    let mut nonce: Vec<u8> = repeat(0u8).take(16).collect();
+    random.fill_bytes(&mut nonce[..]);
+
+    ctr_encryption(&input, &mut output, &key, &nonce);
+
+    println!("{:?}", output);
 }
 
 /* Encrypt a array of unsigned int (128 bits)
@@ -87,11 +90,8 @@ fn decrypyt_x8(input : &[u8], key : &[u8]) -> [u8;128] {
     return output
 }
 
-fn ctr_encryption(input : &[u8], output : &mut [u8], key : &[u8], ctr_val : Vec<u8>) {
-    let mut _buf_enc_out =  RefWriteBuffer::new(output);
-    let mut _buf_enc_in =  RefReadBuffer::new(input);
-    let encryptor = AesSafe128Encryptor::new(key);
-
-    let mut _ctr_enc = CtrMode::new(encryptor, ctr_val);
-    _ctr_enc.encrypt(&mut _buf_enc_in, &mut _buf_enc_out, true);
+fn ctr_encryption(input : &[u8], output : &mut [u8], key : &[u8], nonce : &[u8]) {
+    //initialize the Encryptor
+    let mut _cipher = aes::ctr(KeySize::KeySize128, key, nonce);
+    _cipher.process(input, &mut output[..]);
 }
