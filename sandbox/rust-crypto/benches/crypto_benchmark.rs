@@ -3,10 +3,10 @@ extern crate criterion;
 extern crate crypto;
 extern crate rustc_serialize;
 
-
 use crypto::symmetriccipher::{BlockEncryptor, BlockEncryptorX8};
 use crypto::aessafe::{AesSafe128Encryptor, AesSafe128EncryptorX8};
 use criterion::{Criterion,Throughput, Benchmark };
+use crypto::aes::{self, KeySize};
 
 
 
@@ -26,12 +26,20 @@ fn encrypt_x8(input : &[u8], key : &[u8]) -> [u8;128] {
     return output
 }
 
+fn ctr_encryption(input : &[u8], output : &mut [u8], key : &[u8], nonce : &[u8]) {
+    //initialize the Encryptor
+    let mut _cipher = aes::ctr(KeySize::KeySize128, key, nonce);
+    _cipher.process(input, &mut output[..]);
+}
+
 fn encrypt_benchmark(c: &mut Criterion) {
 
 
     static INPUT_X8 : &[u8;128] = &[0;128];
     static INPUT : &[u8;16] = &[0;16];
     static KEY: &[u8;16] = &[0;16];
+    static NONCE : &[u8; 16] = &[1;16];
+    let mut output : [u8;16] =[0;16];
 
     //c.bench_function("Classic Encrypt", move |b| b.iter(|| encrypt(&input, &key)));
     //c.bench_function("x8 Encrypt", move |b| b.iter(|| encrypt_x8(&input_x8, &key)));
@@ -49,6 +57,14 @@ fn encrypt_benchmark(c: &mut Criterion) {
             "x8 Encrypt",
             |b| b.iter(|| encrypt_x8(INPUT_X8, KEY)),
         ).throughput(Throughput::Bytes(INPUT_X8.len() as u32)),
+    );
+
+    c.bench(
+        "throughput Ctr encryption",
+        Benchmark::new(
+            "Ctr encryption",
+            move |b| b.iter(|| ctr_encryption(INPUT, &mut output, KEY, NONCE)),
+        ).throughput(Throughput::Bytes(INPUT.len() as u32)),
     );
 
 }
