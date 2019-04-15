@@ -1,90 +1,125 @@
-use std::io::prelude::*;
-use std::net::TcpStream;
-use std::net::TcpListener;
-use web_server::{ThreadPool, Cell};
-use std::sync::{Arc, Mutex, mpsc};
 use rand::prelude::*;
-use std::env;
+use std::sync::{mpsc, Arc, Mutex, Barrier};
 use std::{thread, time};
+use web_server::{Cell, ThreadPool};
+use std::env;
+
+extern crate web_server;
 
 
-fn main() {
+fn execute(threadpool: Arc<Mutex<ThreadPool>>, size: usize, vbuff: Arc<Mutex<Vec<Cell>>>, counter: Arc<Mutex<i32>>,
+           counter_write: Arc<Mutex<i32>>, sender: Arc<Mutex<mpsc::Sender<()>>>, receiver: Arc<Mutex<mpsc::Receiver<()>>>
+           , r: Arc<Mutex<mpsc::Receiver<()>>>, s: Arc<Mutex<mpsc::Sender<()>>>,
+           lock_plain: Arc<Mutex<[u64; 64]>>, lock_key: Arc<Mutex<[u64; 64]>>,
+           rd: Arc<Mutex<mpsc::Receiver<()>>>,
+           sd: Arc<Mutex<mpsc::Sender<()>>>,
+           counter_wait: Arc<Mutex<i32>>, bench_size: usize,
+) {
     let args: Vec<String> = env::args().collect();
-    let size: usize = args[1].parse().unwrap();
-    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    let nb_request = args[2].parse().unwrap();
+    let barrier = Arc::new(Barrier::new(bench_size + 1));
+    let pool = threadpool.lock().unwrap();
 
-    let vec: Vec<Cell> = vec![Cell { plain: 0, key: 0 }; size];
-    let vec: Arc<Mutex<Vec<Cell>>> = Arc::new(Mutex::new(vec));
-
-    let counter = Arc::new(Mutex::new(0));
-    let counter_write = Arc::new(Mutex::new(0));
-    let pool = ThreadPool::new(size);
-    let (sender, receiver) = mpsc::channel();
-    let (s, r) = mpsc::channel();
-    let r = Arc::new(Mutex::new(r));
-    let s = Arc::new(Mutex::new(s.clone()));
-
-
-    let (sd, rd) = mpsc::channel();
-    let rd = Arc::new(Mutex::new(rd));
-    let sd = Arc::new(Mutex::new(sd.clone()));
-    let counter_wait = Arc::new(Mutex::new(0));
-
-
-    let receiver = Arc::new(Mutex::new(receiver));
-    let sender = Arc::new(Mutex::new(sender.clone()));
-
-    for stream in listener.incoming() {
-        let stream = stream.unwrap();
+    for i in 0..nb_request {
         let sender = Arc::clone(&sender);
         let receiver = Arc::clone(&receiver);
+        let counter = Arc::clone(&counter);
         let r = Arc::clone(&r);
         let s = Arc::clone(&s);
+        let counter_write = Arc::clone(&counter_write);
 
         let rd = Arc::clone(&rd);
         let sd = Arc::clone(&sd);
         let counter_wait = Arc::clone(&counter_wait);
 
 
-        let counter = Arc::clone(&counter);
-        let buffer = Arc::clone(&vec);
-        let counter_write = Arc::clone(&counter_write);
+        let _plain = lock_plain.lock().unwrap();
+        let plain = _plain[i];
+        std::mem::drop(_plain);
 
+        let _key = lock_key.lock().unwrap();
+        let key = _key[i];
+        std::mem::drop(_key);
+
+        let k = Arc::new(Mutex::new(key));
+        let p = Arc::new(Mutex::new(plain));
+
+        let plain = Arc::clone(&p);
+        let key = Arc::clone(&k);
+        let buff = Arc::clone(&vbuff);
+        let c = barrier.clone();
         pool.execute(move || {
-            handle_connection(stream, counter, buffer, sender, receiver, size, counter_write, s, r, sd, rd, counter_wait);
+            //  ln!("dans execute");
+            handle_connection(counter, buff, sender, receiver, size, counter_write, s, r, plain, key, rd, sd, counter_wait);
+            c.wait();
+            println!("hello");
+
         });
     }
+    println!("hello");
+
+    barrier.wait();
 }
 
-
-pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: Arc<Mutex<Vec<Cell>>>,
-                         sen: Arc<Mutex<mpsc::Sender<()>>>, rec: Arc<Mutex<mpsc::Receiver<()>>>,
-                         size: usize, counter_write: Arc<Mutex<i32>>, s: Arc<Mutex<mpsc::Sender<()>>>,
-                         r: Arc<Mutex<mpsc::Receiver<()>>>, sd: Arc<Mutex<mpsc::Sender<()>>>,
-                         rd: Arc<Mutex<mpsc::Receiver<()>>>, counter_wait: Arc<Mutex<i32>>) {
-    let mut buffer = [0; 8];
-    stream.read(&mut buffer).unwrap();
-    let plain = u64::from_be_bytes(buffer);
-    let key = rand::thread_rng().gen();
-
-
-    let mut counter_thread = counter.lock().unwrap();
-    if *counter_thread == -1 {
-        let _received = r.lock().unwrap().recv().unwrap();
-        *counter_thread = 0;
+pub fn handle_connection(
+    counter: Arc<Mutex<i32>>,
+    buf: Arc<Mutex<Vec<Cell>>>,
+    sen: Arc<Mutex<mpsc::Sender<()>>>,
+    rec: Arc<Mutex<mpsc::Receiver<()>>>,
+    size: usize,
+    counter_write: Arc<Mutex<i32>>,
+    s: Arc<Mutex<mpsc::Sender<()>>>,
+    r: Arc<Mutex<mpsc::Receiver<()>>>,
+    lock_plain: Arc<Mutex<u64>>,
+    lock_key: Arc<Mutex<u64>>,
+    rd: Arc<Mutex<mpsc::Receiver<()>>>,
+    sd: Arc<Mutex<mpsc::Sender<()>>>,
+    counter_wait: Arc<Mutex<i32>>,
+) {
+    let mut cpt = counter.lock().unwrap();
+    if *cpt == -1 {
+        if size != 1 {
+            r.lock().unwrap().recv().unwrap();
+        }
+        *cpt = 0;
     }
-    let index = *counter_thread;
-    *counter_thread += 1;
-    std::mem::drop(counter_thread);
+    let index = *cpt;
+
+    *cpt += 1;
+    std::mem::drop(cpt);
     assert!(index >= 0 && index <= size as i32);
-
     let mut buff = buf.lock().unwrap();
-    buff[index as usize].key = key;
-    buff[index as usize].plain = plain;
+
+    let plain = lock_plain.lock().unwrap();
+
+    let key = lock_key.lock().unwrap();
+
+    buff[index as usize].key = *key;
+    buff[index as usize].plain = *plain;
+    let local_plain = *plain;
+    let local_key = *key;
+
     std::mem::drop(buff);
+    std::mem::drop(plain);
 
+    std::mem::drop(key);
 
-    if index != (size as i32 - 1) {
+    if index == size as i32 - 1 {
+        rd.lock().unwrap().recv().unwrap();
+        let mut buff = buf.lock().unwrap();
+        for i in 0..(size) {
+            buff[i].plain ^= buff[i].key;
+            thread::sleep(time::Duration::from_millis(1));
+        }
+        let result = buff[index as usize].plain;
+        std::mem::drop(buff);
+
+        let mut cpt = counter.lock().unwrap();
+        *cpt = -1;
+            let _sender = sen.lock().unwrap().send(()).unwrap();
+        }
+        std::mem::drop(cpt);
+    } else {
         let mut c_wait = counter_wait.lock().unwrap();
         *c_wait += 1;
         if *c_wait == (size as i32) - 1 {
@@ -95,45 +130,59 @@ pub fn handle_connection(mut stream: TcpStream, counter: Arc<Mutex<i32>>, buf: A
         let _received = rec.lock().unwrap().recv().unwrap();
         let buff = buf.lock().unwrap();
         let result = buff[index as usize].plain;
+        assert!(result == local_plain ^ local_key);
+        //   ln!("res {} index {}",result,index);
+        let mut c = counter_write.lock().unwrap();
+        *c += 1;
+        if *c == (size as i32) - 1 {
+            let _sender = s.lock().unwrap().send(()).unwrap();
+            *c = 0;
+        }
         std::mem::drop(buff);
-        assert!(result == key ^ plain);
-        stream.write(&u64_to_array_of_u8(result)).unwrap();
-        let mut c_write = counter_write.lock().unwrap();
-        *c_write += 1;
-        if *c_write == (size as i32) - 1 {
-            s.lock().unwrap().send(()).unwrap();
-            *c_write = 0;
-        }
-    } else {
-        rd.lock().unwrap().recv().unwrap();
-        let mut buff = buf.lock().unwrap();
-        for i in 0..(size) {
-            buff[i].plain = buff[i].plain ^ buff[i].key;
-            thread::sleep(time::Duration::from_millis(1));
-        }
-        assert!(buff[size - 1].plain == key ^ plain);
-        stream.write(&u64_to_array_of_u8(buff[size - 1].plain)).unwrap();
-        std::mem::drop(buff);
-
-        let mut counter_thread = counter.lock().unwrap();
-        *counter_thread = -1;
-        std::mem::drop(counter_thread);
-
-        for _ in 0..(size - 1) {
-            sen.lock().unwrap().send(()).unwrap();
-        }
     }
 }
 
 
-fn u64_to_array_of_u8(x: u64) -> [u8; 8] {
-    let b1: u8 = ((x >> 56) & 0xff) as u8;
-    let b2: u8 = ((x >> 48) & 0xff) as u8;
-    let b3: u8 = ((x >> 40) & 0xff) as u8;
-    let b4: u8 = ((x >> 32) & 0xff) as u8;
-    let b5: u8 = ((x >> 24) & 0xff) as u8;
-    let b6: u8 = ((x >> 16) & 0xff) as u8;
-    let b7: u8 = ((x >> 8) & 0xff) as u8;
-    let b8: u8 = (x & 0xff) as u8;
-    return [b1, b2, b3, b4, b5, b6, b7, b8];
+fn main() {
+    let args: Vec<String> = env::args().collect();
+    let bench_size = args[1].parse().unwrap();
+    let pool = Arc::new(Mutex::new(ThreadPool::new(bench_size)));
+    let size: usize = 32;
+    let vec: Vec<Cell> = vec![Cell { plain: 0, key: 0 }; size];
+    let buf: Arc<Mutex<Vec<Cell>>> = Arc::new(Mutex::new(vec));
+    let counter = Arc::new(Mutex::new(0));
+    let counter_write = Arc::new(Mutex::new(0));
+    let (sender, receiver) = mpsc::channel();
+    let receiver = Arc::new(Mutex::new(receiver));
+    let sender = Arc::new(Mutex::new(sender.clone()));
+    let (s, r) = mpsc::channel();
+    let r = Arc::new(Mutex::new(r));
+    let s = Arc::new(Mutex::new(s.clone()));
+
+    let (sd, rd) = mpsc::channel();
+    let rd = Arc::new(Mutex::new(rd));
+    let sd = Arc::new(Mutex::new(sd.clone()));
+    let counter_wait = Arc::new(Mutex::new(0));
+
+
+    let mut plain: [u64; 64] = [0; 64];
+    let mut key: [u64; 64] = [0; 64];
+    for i in 0..64 {
+        plain[i] = rand::thread_rng().gen();
+        key[i] = rand::thread_rng().gen();
+    }
+    let plain: Arc<Mutex<[u64; 64]>> = Arc::new(Mutex::new(plain));
+    let key: Arc<Mutex<[u64; 64]>> = Arc::new(Mutex::new(key));
+
+    for i in 0..50 {
+        // ln!("i {}",i);
+
+        execute(Arc::clone(&pool), size,
+                Arc::clone(&buf), Arc::clone(&counter),
+                Arc::clone(&counter_write), Arc::clone(&sender),
+                Arc::clone(&receiver), Arc::clone(&r), Arc::clone(&s),
+                Arc::clone(&plain), Arc::clone(&key),
+                Arc::clone(&rd), Arc::clone(&sd), Arc::clone(&counter_wait), bench_size,
+        );
+    }
 }
