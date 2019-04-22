@@ -1,11 +1,50 @@
-use std::thread;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::thread;
+pub mod runtime;
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
     sender: mpsc::Sender<Message>,
+}
+
+pub struct Scheduler {
+    pub chan_wait_to_write: Arc<Mutex<mpsc::Receiver<()>>>,
+    //r
+    pub chan_ok_to_write: Arc<Mutex<mpsc::Sender<()>>>,
+    //s
+    pub chan_wait_to_encrypt: Arc<Mutex<mpsc::Receiver<()>>>,
+    //rd
+    pub chan_ok_to_encrypt: Arc<Mutex<mpsc::Sender<()>>>,
+    //sd
+    pub chan_wait_to_read: Arc<Mutex<mpsc::Receiver<()>>>,
+    //rec
+    pub chan_ok_to_read: Arc<Mutex<mpsc::Sender<()>>>,
+    //sen
+    pub counter_index: Arc<Mutex<i32>>,
+    pub counter_wait: Arc<Mutex<i32>>,
+    pub counter_write: Arc<Mutex<i32>>,
+
+}
+
+impl Scheduler {
+    pub fn new(chan_wait_to_write: Arc<Mutex<mpsc::Receiver<()>>>, chan_ok_to_write: Arc<Mutex<mpsc::Sender<()>>>, chan_wait_to_encrypt: Arc<Mutex<mpsc::Receiver<()>>>,
+               chan_ok_to_encrypt: Arc<Mutex<mpsc::Sender<()>>>, chan_wait_to_read: Arc<Mutex<mpsc::Receiver<()>>>,
+               chan_ok_to_read: Arc<Mutex<mpsc::Sender<()>>>, counter_index: Arc<Mutex<i32>>,
+               counter_wait: Arc<Mutex<i32>>, counter_write: Arc<Mutex<i32>>) -> Scheduler {
+        Scheduler {
+            chan_wait_to_write: Arc::clone(&chan_wait_to_write),
+            chan_ok_to_write: Arc::clone(&chan_ok_to_write),
+            chan_wait_to_encrypt: Arc::clone(&chan_wait_to_encrypt),
+            chan_ok_to_encrypt: Arc::clone(&chan_ok_to_encrypt),
+            chan_wait_to_read: Arc::clone(&chan_wait_to_read),
+            chan_ok_to_read: Arc::clone(&chan_ok_to_read),
+            counter_index: Arc::clone(&counter_index),
+            counter_wait: Arc::clone(&counter_wait),
+            counter_write: Arc::clone(&counter_write),
+        }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -19,7 +58,6 @@ impl Cell {
         return format!("plain {} , key {}", self.plain, self.key);
     }
 }
-
 
 enum Message {
     NewJob(Job),
@@ -38,7 +76,6 @@ impl<F: FnOnce()> FnBox for F {
 
 type Job = Box<FnBox + Send + 'static>;
 
-
 impl ThreadPool {
     pub fn new(size: usize) -> ThreadPool {
         assert!(size > 0);
@@ -53,15 +90,12 @@ impl ThreadPool {
             workers.push(Worker::new(id, Arc::clone(&receiver)));
         }
 
-        ThreadPool {
-            workers,
-            sender,
-        }
+        ThreadPool { workers, sender }
     }
 
     pub fn execute<F>(&self, f: F)
         where
-            F: FnOnce() + Send + 'static
+            F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
 
@@ -94,12 +128,9 @@ struct Worker {
     thread: Option<thread::JoinHandle<()>>,
 }
 
-
 impl Worker {
-    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) ->
-    Worker {
-
-        let thread = thread::spawn(move ||{
+    fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Message>>>) -> Worker {
+        let thread = thread::spawn(move || {
             loop {
                 let message = receiver.lock().unwrap().recv().unwrap();
 
@@ -108,12 +139,12 @@ impl Worker {
                         //println!("Worker {} got a job; executing.", id);
 
                         job.call_box();
-                    },
+                    }
                     Message::Terminate => {
                         //println!("Worker {} was told to terminate.", id);
 
                         break;
-                    },
+                    }
                 }
             }
         });
