@@ -2,6 +2,7 @@ use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
+
 pub mod runtime;
 
 pub struct ThreadPool {
@@ -11,17 +12,11 @@ pub struct ThreadPool {
 
 pub struct Scheduler {
     pub chan_wait_to_write: Arc<Mutex<mpsc::Receiver<()>>>,
-    //r
     pub chan_ok_to_write: Arc<Mutex<mpsc::Sender<()>>>,
-    //s
     pub chan_wait_to_encrypt: Arc<Mutex<mpsc::Receiver<()>>>,
-    //rd
     pub chan_ok_to_encrypt: Arc<Mutex<mpsc::Sender<()>>>,
-    //sd
     pub chan_wait_to_read: Arc<Mutex<mpsc::Receiver<()>>>,
-    //rec
     pub chan_ok_to_read: Arc<Mutex<mpsc::Sender<()>>>,
-    //sen
     pub counter_index: Arc<Mutex<i32>>,
     pub counter_wait: Arc<Mutex<i32>>,
     pub counter_write: Arc<Mutex<i32>>,
@@ -34,15 +29,15 @@ impl Scheduler {
                chan_ok_to_read: Arc<Mutex<mpsc::Sender<()>>>, counter_index: Arc<Mutex<i32>>,
                counter_wait: Arc<Mutex<i32>>, counter_write: Arc<Mutex<i32>>) -> Scheduler {
         Scheduler {
-            chan_wait_to_write: Arc::clone(&chan_wait_to_write),
-            chan_ok_to_write: Arc::clone(&chan_ok_to_write),
-            chan_wait_to_encrypt: Arc::clone(&chan_wait_to_encrypt),
-            chan_ok_to_encrypt: Arc::clone(&chan_ok_to_encrypt),
-            chan_wait_to_read: Arc::clone(&chan_wait_to_read),
-            chan_ok_to_read: Arc::clone(&chan_ok_to_read),
-            counter_index: Arc::clone(&counter_index),
-            counter_wait: Arc::clone(&counter_wait),
-            counter_write: Arc::clone(&counter_write),
+            chan_wait_to_write,
+            chan_ok_to_write,
+            chan_wait_to_encrypt,
+            chan_ok_to_encrypt,
+            chan_wait_to_read,
+            chan_ok_to_read,
+            counter_index,
+            counter_wait,
+            counter_write,
         }
     }
 }
