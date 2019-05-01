@@ -1,0 +1,8 @@
+[package]
+name = "aes_struct"
+version = "0.1.0"
+authors = ["djxdu"]
+edition = "2018"
+
+[dependencies]
+rust-crypto = "^0.2"
