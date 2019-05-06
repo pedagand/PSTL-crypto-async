@@ -15,9 +15,11 @@ use std::{cmp, ptr};
 
 
 fn main() {
+    /*=test=*/
     let mut key: Vec<u8> = repeat(0u8).take(16).collect();
     let mut random = OsRng::new().expect("Failed to get OS random generator");
     random.fill_bytes(&mut key[..]);
+    /*=end=*/
 
     let _ctr_input : [u8;20] = [1;20];
     let mut output : [u8;20] =[0;20];
