@@ -24,10 +24,21 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
-    pub fn new(chan_wait_to_write: Arc<Mutex<mpsc::Receiver<()>>>, chan_ok_to_write: Arc<Mutex<mpsc::Sender<()>>>, chan_wait_to_encrypt: Arc<Mutex<mpsc::Receiver<()>>>,
-               chan_ok_to_encrypt: Arc<Mutex<mpsc::Sender<()>>>, chan_wait_to_read: Arc<Mutex<mpsc::Receiver<()>>>,
-               chan_ok_to_read: Arc<Mutex<mpsc::Sender<()>>>, counter_index: Arc<Mutex<i32>>,
-               counter_wait: Arc<Mutex<i32>>, counter_write: Arc<Mutex<i32>>) -> Scheduler {
+    pub fn new() -> Scheduler {
+
+        let counter_index = Arc::new(Mutex::new(0));
+        let counter_write = Arc::new(Mutex::new(0));
+        let (chan_ok_to_read, chan_wait_to_read) = mpsc::channel();
+        let chan_wait_to_read = Arc::new(Mutex::new(chan_wait_to_read));
+        let chan_ok_to_read = Arc::new(Mutex::new(chan_ok_to_read.clone()));
+        let (chan_ok_to_write, chan_wait_to_write) = mpsc::channel();
+        let chan_wait_to_write = Arc::new(Mutex::new(chan_wait_to_write));
+        let chan_ok_to_write = Arc::new(Mutex::new(chan_ok_to_write.clone()));
+        let (chan_ok_to_encrypt, chan_wait_to_encrypt) = mpsc::channel();
+        let chan_wait_to_encrypt = Arc::new(Mutex::new(chan_wait_to_encrypt));
+        let chan_ok_to_encrypt = Arc::new(Mutex::new(chan_ok_to_encrypt.clone()));
+        let counter_wait = Arc::new(Mutex::new(0));
+
         Scheduler {
             chan_wait_to_write,
             chan_ok_to_write,
@@ -47,6 +58,13 @@ pub struct Cell {
     pub plain: u64,
     pub key: u64,
 }
+
+#[derive(Copy, Clone)]
+pub struct resultIndex {
+    pub result: u64,
+    pub index: i32,
+}
+
 
 impl Cell {
     pub fn to_string(self) -> String {
