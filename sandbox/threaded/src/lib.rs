@@ -20,12 +20,11 @@ pub struct Scheduler {
     pub counter_index: Arc<Mutex<i32>>,
     pub counter_wait: Arc<Mutex<i32>>,
     pub counter_write: Arc<Mutex<i32>>,
-
+    pub buffer: Arc<Mutex<Vec<Cell>>>,
 }
 
 impl Scheduler {
-    pub fn new() -> Scheduler {
-
+    pub fn new(size: usize) -> Scheduler {
         let counter_index = Arc::new(Mutex::new(0));
         let counter_write = Arc::new(Mutex::new(0));
         let (chan_ok_to_read, chan_wait_to_read) = mpsc::channel();
@@ -38,6 +37,7 @@ impl Scheduler {
         let chan_wait_to_encrypt = Arc::new(Mutex::new(chan_wait_to_encrypt));
         let chan_ok_to_encrypt = Arc::new(Mutex::new(chan_ok_to_encrypt.clone()));
         let counter_wait = Arc::new(Mutex::new(0));
+        let buffer: Arc<Mutex<Vec<Cell>>> = Arc::new(Mutex::new(vec![Cell { plain: 0, key: 0 }; size]));
 
         Scheduler {
             chan_wait_to_write,
@@ -49,6 +49,7 @@ impl Scheduler {
             counter_index,
             counter_wait,
             counter_write,
+            buffer,
         }
     }
 }
@@ -60,7 +61,7 @@ pub struct Cell {
 }
 
 #[derive(Copy, Clone)]
-pub struct resultIndex {
+pub struct ResultIndex {
     pub result: u64,
     pub index: i32,
 }

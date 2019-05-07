@@ -5,18 +5,16 @@ extern crate threaded;
 mod tests {
     use rand::prelude::*;
     use std::sync::{Arc, Mutex, Barrier};
-    use threaded::{Cell, ThreadPool, Scheduler, resultIndex};
+    use threaded::{ThreadPool, Scheduler, ResultIndex};
 
     #[test]
     fn test_scheduler() {
         const nb_request: usize = 64;
-        let vec_result: Vec<resultIndex> = vec![resultIndex { result: 0, index: 0 }; nb_request];
-        let vec_result: Arc<Mutex<Vec<resultIndex>>> = Arc::new(Mutex::new(vec_result));
+        let vec_result: Vec<ResultIndex> = vec![ResultIndex { result: 0, index: 0 }; nb_request];
+        let vec_result: Arc<Mutex<Vec<ResultIndex>>> = Arc::new(Mutex::new(vec_result));
         let bench_size = 64;
         let pool = ThreadPool::new(bench_size);
         let size: usize = bench_size;
-        let vec: Vec<Cell> = vec![Cell { plain: 0, key: 0 }; size];
-        let buf: Arc<Mutex<Vec<Cell>>> = Arc::new(Mutex::new(vec));
         let mut plain: [u64; 64] = [0; 64];
         let mut key: [u64; 64] = [0; 64];
         for i in 0..64 {
@@ -24,7 +22,7 @@ mod tests {
             key[i] = rand::thread_rng().gen();
         }
 
-        let scheduler = Scheduler::new();
+        let scheduler = Scheduler::new(size);
         let scheduler = Arc::new(scheduler);
         let barrier = Arc::new(Barrier::new(bench_size + 1));
 
@@ -36,12 +34,11 @@ mod tests {
             let scheduler = Arc::clone(&scheduler);
             let plain = Arc::clone(&p);
             let key = Arc::clone(&k);
-            let buffer = Arc::clone(&buf);
             let c = barrier.clone();
             let vec_result = Arc::clone(&vec_result);
 
             pool.execute(move || {
-                let res = threaded::runtime::test_submit_job(buffer, scheduler, size, key, plain);
+                let res = threaded::runtime::submit_job(scheduler, size, key, plain);
                 let mut vec_result = vec_result.lock().unwrap();
                 vec_result.push(res);
                 std::mem::drop(vec_result);

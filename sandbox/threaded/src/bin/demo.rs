@@ -2,7 +2,7 @@ extern crate threaded;
 
 use rand::prelude::*;
 use std::sync::{Arc, Mutex, Barrier};
-use threaded::{Cell, ThreadPool, Scheduler};
+use threaded::{ThreadPool, Scheduler};
 use std::env;
 
 
@@ -11,9 +11,6 @@ fn main() {
     let bench_size = args[1].parse().unwrap();
     let pool = Arc::new(Mutex::new(ThreadPool::new(bench_size)));
     let size: usize = bench_size;
-    let vec: Vec<Cell> = vec![Cell { plain: 0, key: 0 }; size];
-    let buf: Arc<Mutex<Vec<Cell>>> = Arc::new(Mutex::new(vec));
-
     let mut plain: [u64; 64] = [0; 64];
     let mut key: [u64; 64] = [0; 64];
     for i in 0..64 {
@@ -23,16 +20,16 @@ fn main() {
     let plain: Arc<Mutex<[u64; 64]>> = Arc::new(Mutex::new(plain));
     let key: Arc<Mutex<[u64; 64]>> = Arc::new(Mutex::new(key));
 
-    let scheduler = Scheduler::new();
-
+    let scheduler = Scheduler::new(size);
     let scheduler = Arc::new(scheduler);
+
     for _ in 0..50 {
-        init(Arc::clone(&pool), Arc::clone(&buf), size, Arc::clone(&scheduler), Arc::clone(&plain), Arc::clone(&key), bench_size);
+        init(Arc::clone(&pool), size, Arc::clone(&scheduler), Arc::clone(&plain), Arc::clone(&key), bench_size);
     }
 }
 
 
-fn init(threadpool: Arc<Mutex<ThreadPool>>, buff: Arc<Mutex<Vec<Cell>>>, size: usize, scheduler: Arc<Scheduler>,
+fn init(threadpool: Arc<Mutex<ThreadPool>>, size: usize, scheduler: Arc<Scheduler>,
         lock_plain: Arc<Mutex<[u64; 64]>>, lock_key: Arc<Mutex<[u64; 64]>>, bench_size: usize,
 ) {
     let args: Vec<String> = env::args().collect();
@@ -54,11 +51,10 @@ fn init(threadpool: Arc<Mutex<ThreadPool>>, buff: Arc<Mutex<Vec<Cell>>>, size: u
         let scheduler = Arc::clone(&scheduler);
         let plain = Arc::clone(&p);
         let key = Arc::clone(&k);
-        let buffer = Arc::clone(&buff);
         let c = barrier.clone();
 
         pool.execute(move || {
-            threaded::runtime::submit_job(buffer, scheduler, size, key, plain);
+            threaded::runtime::submit_job(scheduler, size, key, plain);
             c.wait();
         });
     }
