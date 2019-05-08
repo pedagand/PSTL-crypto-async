@@ -6,7 +6,7 @@ use crypto::symmetriccipher::{BlockEncryptor, BlockDecryptor, BlockEncryptorX8, 
 use crypto::aessafe::{AesSafe128Encryptor, AesSafe128Decryptor, AesSafe128EncryptorX8, AesSafe128DecryptorX8};
 use std::iter::repeat;
 use rustc_serialize::base64::*;
-
+use crypto::aes::{self, KeySize};
 
 fn main() {
     //creation of a random generator
@@ -31,6 +31,18 @@ fn main() {
     let decrypter : [u8;128] = decrypyt_x8(&crypter, &key);
     println!("Cryptage 8 : {:?}", crypter.to_base64(STANDARD));
     println!("Decryptage 8 : {:?}", decrypter.to_base64(STANDARD));
+
+    let mut ctr_val : Vec<u8> = repeat(0u8).take(16).collect();
+    random.fill_bytes(&mut ctr_val[..]);
+
+    let _ctr_input : [u8;16] = [1;16];
+    let mut output : [u8;16] =[0;16];
+    let mut nonce: Vec<u8> = repeat(0u8).take(16).collect();
+    random.fill_bytes(&mut nonce[..]);
+
+    ctr_encryption(&input, &mut output, &key, &nonce);
+
+    println!("{:?}", output);
 }
 
 /* Encrypt a array of unsigned int (128 bits)
@@ -75,4 +87,10 @@ fn decrypyt_x8(input : &[u8], key : &[u8]) -> [u8;128] {
     let decryptor = AesSafe128DecryptorX8::new(&key);
     decryptor.decrypt_block_x8(&input, &mut output);
     return output
+}
+
+fn ctr_encryption(input : &[u8], output : &mut [u8], key : &[u8], nonce : &[u8]) {
+    //initialize the Encryptor
+    let mut _cipher = aes::ctr(KeySize::KeySize128, key, nonce);
+    _cipher.process(input, &mut output[..]);
 }

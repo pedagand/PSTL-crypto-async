@@ -1,0 +1,22 @@
+\documentclass{article}
+
+\usepackage{xcolor}
+\usepackage{listings, listings-rust}
+
+\lstset{style=colouredRust}
+\newcommand{\rustfrom}[2]
+           {\lstinputlisting[language=Rust,linerange={#2}-end]{../../#1}}
+
+
+\begin{document}
+
+\begin{lstlisting}[language=Rust]
+// your source code
+let _ctr_input : [u8;20] = [1;20];
+let mut output : [u8;20] =[0;20];
+let mut output_2 : [u8;20] =[0;20];
+\end{lstlisting}
+
+\rustfrom{sandbox/aes_ctr/src/main.rs}{test}
+
+\end{document}
