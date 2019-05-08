@@ -11,16 +11,17 @@ enum Status {
     Completed
 }
 
-fn from_char_to_u8(list : &[char], mut list_u8 : &[u8]){
-    if list.len() != list_u8.len() {
-        panic!("Array of different size");
+fn from_char_to_u8(list_char : &Vec<char>, list_u8 : &mut Vec<u8>){
+    for i in list_char {
+        &list_u8.push(*i as u8);
     }
-    let mut vect : Vec<u8> = Vec::with_capacity(list.len());
+}
 
-    for i in list {
-        &vect.push(*i as u8);
+fn from_u8_to_char(list_char : &mut Vec<char>, list_u8 : &Vec<u8>){
+    let mut vec : Vec<char> = Vec::with_capacity(list_u8.len());
+    for i in 0..list_u8.len() {
+        list_char[i] = (i as u8) as char;
     }
-    //list_u8 = &vect[..];
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -40,23 +41,23 @@ impl Error for AesJobInLaneError {
 
 #[derive(Clone)]
 struct Aes_job{
-    plaintext : Box<[u8]>,
-    ciphertext : Box<[u8]>,
+    plaintext : Vec<char>,
+    ciphertext : Vec<char>,
     //iv : [char;16],
     iv : [u8;16],
-    keys : Box<[u8]>,
-    len : u8,
+    keys : Vec<char>,
+    len : u32,
     status : Status
 }
 
 
 struct Aes_args{
     //change the char in sometihing else
-    input : [Box<[u8]>;8],
-    output : [Box<[u8]>;8],
+    input : [Vec<char>;8],
+    output : [Vec<char>;8],
     //iv : [[char;16];8],
     iv : [[u8;16];8],
-    keys : [Box<[u8]>;8]
+    keys : [Vec<char>;8]
 }
 
 
@@ -65,11 +66,10 @@ struct Manager {
     lens: [u32;8],
     unused_lanes: Vec<u8>,
     job_in_lane : [Result<Aes_job, AesJobInLaneError>;8]
-    //job_in_lane : [Aes_job;8]
 }
 
 impl Manager {
-    fn submit_job(&mut self, mut job : Aes_job){
+    fn submit_job(&mut self, mut job :  Aes_job){
 
         let lane_id = self.unused_lanes.pop();
         match lane_id {
@@ -82,17 +82,24 @@ impl Manager {
                 self.args.iv[lane as usize] = job.iv.clone();
 
                 job.status = Status::BeingProcessed;
-                if self.unused_lanes.len() == 0 {
+                self.lens[lane as usize] = job.len ;
+                if self.unused_lanes.len() != 0 {
                     return
                 }
+
                 let (minIdx, min) = self.getMin();
-                for i in 0..min {
-                    let inp : & mut[u8] = Box::leak(self.args.input[i as usize].clone());
-                    let mut out : &mut [u8] =  Box::leak(self.args.output[i as usize].clone());
-                    let key : &mut [u8] = Box::leak(self.args.keys[i as usize].clone());
+                for i in 0..8 {
+                    let mut inp : Vec<u8> = Vec::with_capacity(self.args.input[i as usize].len());
+                    from_char_to_u8(&self.args.input[i as usize].clone(), &mut inp);
+                    let mut out :Vec<u8> = Vec::with_capacity(self.args.output[i as usize].len());
+                    from_char_to_u8(&self.args.output[i as usize].clone(), &mut out);
+                    let mut key : Vec<u8> = Vec::with_capacity(self.args.keys[i as usize].len());
+                    from_char_to_u8(&self.args.keys[i as usize].clone(), &mut key);
                     //let iv_char  : [char;16] = self.args.iv[i as usize];
                     let iv : [u8;16] = self.args.iv[i as usize];
                     ctr_encryption(&inp, &mut out, &key, &iv);
+                    from_u8_to_char(&mut self.args.output[i as usize], &out);
+                    println!("out : {:?}", out);
                 }
 
                 for i in 0..8 {
@@ -102,12 +109,13 @@ impl Manager {
                 for i in 0..8 {
                     if self.lens[i] == 0{
                         match &self.job_in_lane[i] {
-                            Ok(mut J) => {J.status = Status::Completed;
-                            self.unused_lanes.push(i as u8);
+                            Ok(j) => {
+                                //j.status = Status::Completed;
+                                self.unused_lanes.push(i as u8);
+                                self.job_in_lane[i] = Err(AesJobInLaneError);
                             },
-                            Err(E) => println!("Cant change the status"),
+                            Err(e) => println!("Error : {}", e),
                         }
-
                     }
                 }
             }
@@ -115,6 +123,7 @@ impl Manager {
         }
 
     }
+
 
     fn getMin(&self) -> (u32, u8) {
         let mut index : u8 = 0;
@@ -128,6 +137,11 @@ impl Manager {
 
         return (min_size, index)
     }
+
+
+    fn change_status(job : &mut Aes_job, status : Status){
+        job.status = status;
+    }
 }
 
 fn ctr_encryption(input : &[u8], mut output : &mut [u8], key : &[u8], nonce : &[u8]) {
@@ -137,10 +151,12 @@ fn ctr_encryption(input : &[u8], mut output : &mut [u8], key : &[u8], nonce : &[
 }
 
 fn build_Args() -> Aes_args {
-    let b_input : Box<[u8]> = Box::new([0;0]);
-    let input : [Box<[u8]>; 8] = [b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone()];
-    let output : [Box<[u8]>; 8] = [b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone()];
-    let keys : [Box<[u8]>; 8] = [b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone()];
+    let b_input : Vec<char> = Vec::new();
+    let input : [Vec<char>; 8] = [b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(),
+    b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone()];
+    let output : [Vec<char>; 8]  = [b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(),
+    b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone()];
+    let keys : [Vec<char>; 8]  = [b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone(), b_input.clone()];
     let iv = [[0;16];8];
     Aes_args{
         input : input,
@@ -150,36 +166,93 @@ fn build_Args() -> Aes_args {
     }
 }
 
-fn main() {
-    
-    let input : [u8;75] = [0;75];
-    let output : [u8;75] = [0;75];
-    let mut key: [u8;16] = [1;16] ;
-    let mut iv : [u8;16] = [2;16] ;;
-    let inp = Box::new(input);
-    let out = Box::new(output);
-    let keys = Box::new(key);
-    let job1 = Aes_job{plaintext : inp,
-         ciphertext : out,
-         iv : iv,
-         keys : keys,
-         len : input.len() as u8,
-         status : Status::Idle};
-    let aes_args : Aes_args = build_Args();
-    let job_err = Err(AesJobInLaneError);
-    let job_n_lane: [Result<Aes_job,AesJobInLaneError>;8] = [job_err.clone(),job_err.clone(),job_err.clone(),job_err.clone(),job_err.clone(),job_err.clone(),job_err.clone(),job_err.clone()];
-    let manager = Manager{args : aes_args,
+
+fn build_Manager(args : Aes_args) -> Manager {
+    let job_in_lane : [Result<Aes_job, AesJobInLaneError>; 8] = [Err(AesJobInLaneError),Err(AesJobInLaneError),Err(AesJobInLaneError),Err(AesJobInLaneError),
+                                                                Err(AesJobInLaneError),Err(AesJobInLaneError),Err(AesJobInLaneError),Err(AesJobInLaneError)];
+    let mut unused : Vec<u8> = Vec::new();
+    unused.push(7);unused.push(6);unused.push(5);unused.push(4);
+    unused.push(3);unused.push(2);unused.push(1);unused.push(0);
+    Manager {
+        args : args,
         lens : [0;8],
-        unused_lanes : Vec::new(),
-        job_in_lane : job_n_lane};
-
-
+        unused_lanes : unused,
+        job_in_lane : job_in_lane
+    }
 }
 
-/*
-let test : [char; 8] = ['a'; 8];
-let test_u8 : [u8;8] = [0;8];
-//from_char_to_u8(&test, &test_u8);
+fn main() {
 
-println!("{:?}", test_u8);
-*/
+    let mut args = build_Args();
+    let mut manager = build_Manager(args);
+
+    let mut input : Vec<char> = Vec::new();
+        input.push('a');input.push('a');input.push('a');input.push('a');input.push('a');
+        input.push('a');input.push('a');input.push('a');input.push('a');input.push('a');
+        input.push('a');input.push('a');input.push('a');input.push('a');
+
+        let mut output : Vec<char> = input.clone();
+        let mut keys : Vec<char> = input.clone();
+        keys.push('a');keys.push('a');
+        let len : u32 = input.len() as u32;
+
+        let mut job : Aes_job = Aes_job {
+            plaintext : input.clone(),
+            ciphertext : output,
+            iv : [0;16],
+            len : len,
+            keys : keys.clone(),
+            status : Status::Idle
+        };
+
+        let mut job2 = job.clone();
+        keys.pop();
+        keys.push('b');
+        job2.keys =  keys.clone();
+        let mut job3 = job.clone();
+        keys.pop();
+        keys.push('c');
+        job3.keys =  keys.clone();
+        let mut job4 = job.clone();
+        keys.pop();
+        keys.push('d');
+        job4.keys =  keys.clone();
+        let mut job5 = job.clone();
+        keys.pop();
+        keys.push('e');
+        job5.keys =  keys.clone();
+        let mut job6 = job.clone();
+        keys.pop();
+        keys.push('f');
+        job6.keys =  keys.clone();
+        let mut job7 = job.clone();
+        keys.pop();
+        keys.push('g');
+        job7.keys =  keys.clone();
+        let mut job8 = job.clone();
+        keys.pop();
+        keys.push('h');
+        input.push('b');
+        job8.plaintext = input.clone();
+        job8.ciphertext = input.clone();
+        job8.keys =  keys.clone();
+
+        manager.submit_job(job);
+        manager.submit_job(job2);
+        manager.submit_job(job3);
+        manager.submit_job(job4);
+        manager.submit_job(job5);
+        manager.submit_job(job6);
+        manager.submit_job(job7);
+        manager.submit_job(job8);
+
+        /*println!("job1 : {:?}", job.ciphertext);
+        println!("job2 : {:?}", job2.ciphertext);
+        println!("job3 : {:?}", job3.ciphertext);
+        println!("job4 : {:?}", job4.ciphertext);
+        println!("job5 : {:?}", job5.ciphertext);
+        println!("job6 : {:?}", job6.ciphertext);
+        println!("job7 : {:?}", job7.ciphertext);
+        println!("job8 : {:?}", job8.ciphertext);*/
+
+}
