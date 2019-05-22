@@ -1,26 +1,111 @@
 use std::io::prelude::*;
-use std::net::TcpStream;
-use std::net::TcpListener;
-use web_server::ThreadPool;
+use rand::prelude::*;
+use std::net::{TcpStream, TcpListener};
+use web_server::{ThreadPool, Scheduler};
+use std::sync::Arc;
+use std::{thread, time, env};
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:7870").unwrap();
-    let pool = ThreadPool::new(4);
+    let listener = TcpListener::bind("127.0.0.1:7878").unwrap();
+    let args: Vec<String> = env::args().collect();
+    let size: usize = args[1].parse().unwrap();
+    let pool = ThreadPool::new(size);
+    let scheduler = Scheduler::new(size);
+    let scheduler = Arc::new(scheduler);
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
-        pool.execute(|| {
-            handle_connection(stream);
+        let scheduler = Arc::clone(&scheduler);
+        pool.execute(move || {
+            submit_job(stream, scheduler, size);
         });
     }
 }
 
-
-fn handle_connection(mut stream: TcpStream) {
-    let mut buffer = [0; 512];
+pub fn submit_job(mut stream: TcpStream, scheduler: Arc<Scheduler>, size: usize) {
+    let mut buffer = [0; 8];
     stream.read(&mut buffer).unwrap();
-    println!("Request: {}", String::from_utf8_lossy(&buffer[..]).to_ascii_lowercase());
+    let plain = u64::from_be_bytes(buffer);
+    let key = rand::thread_rng().gen();
 
-    stream.write(&buffer).unwrap();
-    stream.flush().unwrap();
+    let mut cpt = scheduler.counter_index.lock().unwrap();
+    if *cpt == -1 {
+        if size != 1 {
+            ///  Ce premier wait empêche d'autres threads d'écrire dans le buffer
+            /// tant que les premières tâches n'ont pas fini de lire le résultat calculé par la
+            /// dernière thread. L'attente est donc terminée à la ligne 67, lorsque la variable
+            /// counter_write, qui sert normalement de compteur pour le nombre de résultat envoyé
+            /// au client, atteint size - 1.
+            scheduler.chan_wait_to_write.lock().unwrap().recv().unwrap();
+        }
+        *cpt = 0;
+    }
+    let index = *cpt;
+    *cpt += 1;
+    std::mem::drop(cpt);
+    println!("debut index {}  plain {} key {} xor {}", index, plain, key, plain ^ key);
+
+    assert!(index >= 0 && index <= size as i32);
+    let mut buff = scheduler.buffer.lock().unwrap();
+    buff[index as usize].key = key;
+    buff[index as usize].plain = plain;
+
+    std::mem::drop(buff);
+
+    if index == size as i32 - 1 {
+        scheduler.chan_wait_to_encrypt.lock().unwrap().recv().unwrap();
+
+        let mut buff = scheduler.buffer.lock().unwrap();
+        let mut crypt_buffer = scheduler.crypt_buff.lock().unwrap();
+        for i in 0..(size) {
+            crypt_buffer[i] = buff[i].plain ^ buff[i].key;
+            thread::sleep(time::Duration::from_millis(1));
+        }
+        let result = crypt_buffer[index as usize];
+        std::mem::drop(buff);
+        std::mem::drop(crypt_buffer);
+        stream.write(&u64_to_array_of_u8(result)).unwrap();
+        let mut cpt = scheduler.counter_index.lock().unwrap();
+        *cpt = -1;
+        std::mem::drop(cpt);
+        for _ in 0..size - 1 {
+            scheduler.chan_ok_to_read.lock().unwrap().send(()).unwrap();
+        }
+    } else {
+        let mut c_wait = scheduler.counter_wait.lock().unwrap();
+        *c_wait += 1;
+        if *c_wait == (size as i32) - 1 {
+            scheduler.chan_ok_to_encrypt.lock().unwrap().send(()).unwrap();
+            *c_wait = 0;
+        }
+        std::mem::drop(c_wait);
+        scheduler.chan_wait_to_read.lock().unwrap().recv().unwrap();
+        let mut crypt_buffer = scheduler.crypt_buff.lock().unwrap();
+        let result = crypt_buffer[index as usize];
+        println!("index {} result {} plain {} key {} xor {}", index, result, plain, key, plain ^ key);
+        println!();
+        assert!(result == plain ^ key);
+        let mut c = scheduler.counter_write.lock().unwrap();
+        *c += 1;
+        if *c == (size as i32) - 1 {
+            ///liberation du premier wait
+            scheduler.chan_ok_to_write.lock().unwrap().send(()).unwrap();
+            *c = 0;
+        }
+        stream.write(&u64_to_array_of_u8(result)).unwrap();
+        std::mem::drop(crypt_buffer);
+    }
+}
+
+
+fn u64_to_array_of_u8(x: u64) -> [u8; 8] {
+    let b1: u8 = ((x >> 56) & 0xff) as u8;
+    let b2: u8 = ((x >> 48) & 0xff) as u8;
+    let b3: u8 = ((x >> 40) & 0xff) as u8;
+    let b4: u8 = ((x >> 32) & 0xff) as u8;
+    let b5: u8 = ((x >> 24) & 0xff) as u8;
+    let b6: u8 = ((x >> 16) & 0xff) as u8;
+    let b7: u8 = ((x >> 8) & 0xff) as u8;
+    let b8: u8 = (x & 0xff) as u8;
+    return [b1, b2, b3, b4, b5, b6, b7, b8];
 }
