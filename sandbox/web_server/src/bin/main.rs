@@ -35,7 +35,6 @@ pub fn submit_job(mut stream: TcpStream, scheduler: Arc<Scheduler>, size: usize)
     let index = *cpt;
     *cpt += 1;
     std::mem::drop(cpt);
-    println!("debut index {}  plain {} key {} xor {}", index, plain, key, plain ^ key);
 
     assert!(index >= 0 && index <= size as i32);
     let mut buff = scheduler.buffer.lock().unwrap();
