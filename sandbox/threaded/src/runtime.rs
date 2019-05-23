@@ -1,4 +1,4 @@
-use crate::{Scheduler, ResultIndex};
+use web_server::{Scheduler, ResultIndex};
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
 
@@ -10,17 +10,8 @@ pub fn submit_job(scheduler: Arc<Scheduler>, size: usize,
                   lock_plain: Arc<Mutex<u64>>, lock_key: Arc<Mutex<u64>>) -> ResultIndex {
     let mut cpt = scheduler.counter_index.lock().unwrap();
     if *cpt == -1 {
-        if size != 1 {
-            ///  Ce premier wait empêche d'autres threads d'écrire dans le buffer
-            /// tant que les premières tâches n'ont pas fini de lire le résultat calculé par la
-            /// dernière thread. L'attente est donc terminée à la ligne 67, lorsque la variable
-            /// counter_write, qui sert normalement de compteur pour le nombre de résultat envoyé
-            /// au client, atteint size - 1.
-            scheduler.chan_wait_to_write.lock().unwrap().recv().unwrap();
-        }
         *cpt = 0;
     }
-
     let index = *cpt;
     *cpt += 1;
     std::mem::drop(cpt);
@@ -46,13 +37,14 @@ pub fn submit_job(scheduler: Arc<Scheduler>, size: usize,
         scheduler.chan_wait_to_encrypt.lock().unwrap().recv().unwrap();
 
         let mut buff = scheduler.buffer.lock().unwrap();
+        let mut crypt_buffer = scheduler.crypt_buff.lock().unwrap();
         for i in 0..(size) {
-            buff[i].plain ^= buff[i].key;
+            crypt_buffer[i] = buff[i].plain ^ buff[i].key;
             thread::sleep(time::Duration::from_millis(1));
         }
-        let result = buff[index as usize].plain;
+        let result = crypt_buffer[index as usize];
         std::mem::drop(buff);
-
+        std::mem::drop(crypt_buffer);
         let mut cpt = scheduler.counter_index.lock().unwrap();
         *cpt = -1;
         std::mem::drop(cpt);
@@ -74,18 +66,10 @@ pub fn submit_job(scheduler: Arc<Scheduler>, size: usize,
         /// dernière thread finisse de faire le calcul. Ce point de synchronisation  met donc en
         /// attente les thread pendant le temps du calcul.
         scheduler.chan_wait_to_read.lock().unwrap().recv().unwrap();
-        let buff = scheduler.buffer.lock().unwrap();
-        let result = buff[index as usize].plain;
-        std::mem::drop(buff);
-
+        let mut crypt_buffer = scheduler.crypt_buff.lock().unwrap();
+        let result = crypt_buffer[index as usize];
+        std::mem::drop(crypt_buffer);
         assert!(result == local_plain ^ local_key);
-        let mut c = scheduler.counter_write.lock().unwrap();
-        *c += 1;
-        if *c == (size as i32) - 1 {
-            ///liberation du premier wait
-            scheduler.chan_ok_to_write.lock().unwrap().send(()).unwrap();
-            *c = 0;
-        }
         return ResultIndex { result, index };
     }
 }

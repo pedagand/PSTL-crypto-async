@@ -5,7 +5,7 @@ extern crate threaded;
 mod tests {
     use rand::prelude::*;
     use std::sync::{Arc, Mutex, Barrier};
-    use threaded::{ThreadPool, Scheduler, ResultIndex};
+    use web_server::{ThreadPool, Scheduler, ResultIndex};
 
     #[test]
     fn test_scheduler() {

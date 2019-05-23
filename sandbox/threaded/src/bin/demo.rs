@@ -2,7 +2,7 @@ extern crate threaded;
 
 use rand::prelude::*;
 use std::sync::{Arc, Mutex, Barrier};
-use threaded::{ThreadPool, Scheduler};
+use web_server::{ThreadPool, Scheduler};
 use std::env;
 
 
