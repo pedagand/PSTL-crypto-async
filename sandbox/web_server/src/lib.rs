@@ -1,6 +1,4 @@
-use std::sync::mpsc;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, mpsc, Mutex, RwLock};
 use std::thread;
 
 
@@ -20,7 +18,7 @@ pub struct Scheduler {
     pub counter_wait: Arc<Mutex<i32>>,
     pub counter_write: Arc<Mutex<i32>>,
     pub buffer: Arc<Mutex<Vec<Cell>>>,
-    pub crypt_buff: Arc<Mutex<Vec<u64>>>,
+    pub crypt_buff: Arc<RwLock<Vec<u64>>>,
 }
 
 impl Scheduler {
@@ -38,7 +36,7 @@ impl Scheduler {
         let chan_ok_to_encrypt = Arc::new(Mutex::new(chan_ok_to_encrypt.clone()));
         let counter_wait = Arc::new(Mutex::new(0));
         let buffer: Arc<Mutex<Vec<Cell>>> = Arc::new(Mutex::new(vec![Cell { plain: 0, key: 0 }; size]));
-        let crypt_buff: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![0; size]));
+        let crypt_buff: Arc<RwLock<Vec<u64>>> = Arc::new(RwLock::new(vec![0; size]));
 
         Scheduler {
             chan_wait_to_write,

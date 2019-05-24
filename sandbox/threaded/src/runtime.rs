@@ -43,7 +43,7 @@ pub fn submit_job(scheduler: Arc<Scheduler>, size: usize,
         scheduler.chan_wait_to_encrypt.lock().unwrap().recv().unwrap();
 
         let mut buff = scheduler.buffer.lock().unwrap();
-        let mut crypt_buffer = scheduler.crypt_buff.lock().unwrap();
+        let mut crypt_buffer = scheduler.crypt_buff.write().unwrap();
         for i in 0..(size) {
             crypt_buffer[i] = buff[i].plain ^ buff[i].key;
             thread::sleep(time::Duration::from_millis(1));
@@ -72,9 +72,8 @@ pub fn submit_job(scheduler: Arc<Scheduler>, size: usize,
         /// dernière thread finisse de faire le calcul. Ce point de synchronisation  met donc en
         /// attente les thread pendant le temps du calcul.
         scheduler.chan_wait_to_read.lock().unwrap().recv().unwrap();
-        let mut crypt_buffer = scheduler.crypt_buff.lock().unwrap();
+        let mut crypt_buffer = scheduler.crypt_buff.read().unwrap();
         let result = crypt_buffer[index as usize];
-        std::mem::drop(crypt_buffer);
         assert!(result == local_plain ^ local_key);
         let mut c = scheduler.counter_write.lock().unwrap();
         *c += 1;
