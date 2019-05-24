@@ -29,9 +29,6 @@ pub fn submit_job(mut stream: TcpStream, scheduler: Arc<Scheduler>, size: usize)
     let key = rand::thread_rng().gen();
 
     let mut cpt = scheduler.counter_index.lock().unwrap();
-    if *cpt == -1 {
-        *cpt = 0;
-    }
     let index = *cpt;
     *cpt += 1;
     std::mem::drop(cpt);
@@ -57,7 +54,7 @@ pub fn submit_job(mut stream: TcpStream, scheduler: Arc<Scheduler>, size: usize)
         std::mem::drop(crypt_buffer);
         stream.write(&u64_to_array_of_u8(result)).unwrap();
         let mut cpt = scheduler.counter_index.lock().unwrap();
-        *cpt = -1;
+        *cpt = 0;
         std::mem::drop(cpt);
         for _ in 0..size - 1 {
             scheduler.chan_ok_to_read.lock().unwrap().send(()).unwrap();

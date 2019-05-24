@@ -9,9 +9,6 @@ use std::{thread, time};
 pub fn submit_job(scheduler: Arc<Scheduler>, size: usize,
                   lock_plain: Arc<Mutex<u64>>, lock_key: Arc<Mutex<u64>>) -> ResultIndex {
     let mut cpt = scheduler.counter_index.lock().unwrap();
-    if *cpt == -1 {
-        *cpt = 0;
-    }
     let index = *cpt;
     *cpt += 1;
     std::mem::drop(cpt);
@@ -46,7 +43,7 @@ pub fn submit_job(scheduler: Arc<Scheduler>, size: usize,
         std::mem::drop(buff);
         std::mem::drop(crypt_buffer);
         let mut cpt = scheduler.counter_index.lock().unwrap();
-        *cpt = -1;
+        *cpt = 0;
         std::mem::drop(cpt);
         for _ in 0..size - 1 {
             ///liberation du troisieme wait
