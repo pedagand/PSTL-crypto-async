@@ -29,6 +29,15 @@ pub fn submit_job(mut stream: TcpStream, scheduler: Arc<Scheduler>, size: usize)
     let key = rand::thread_rng().gen();
 
     let mut cpt = scheduler.counter_index.lock().unwrap();
+    if *cpt == -1 {
+        ///  Ce premier wait empêche d'autres threads d'écrire dans le buffer
+    /// tant que les premières tâches n'ont pas fini de lire le résultat calculé par la
+    /// dernière thread. L'attente est donc terminée à la ligne 67, lorsque la variable
+    /// counter_write, qui sert normalement de compteur pour le nombre de résultat envoyé
+    /// au client, atteint size - 1.
+        scheduler.chan_wait_to_write.lock().unwrap().recv().unwrap();
+        *cpt = 0;
+    }
     let index = *cpt;
     *cpt += 1;
     std::mem::drop(cpt);
@@ -54,7 +63,7 @@ pub fn submit_job(mut stream: TcpStream, scheduler: Arc<Scheduler>, size: usize)
         std::mem::drop(crypt_buffer);
         stream.write(&u64_to_array_of_u8(result)).unwrap();
         let mut cpt = scheduler.counter_index.lock().unwrap();
-        *cpt = 0;
+        *cpt = -1;
         std::mem::drop(cpt);
         for _ in 0..size - 1 {
             scheduler.chan_ok_to_read.lock().unwrap().send(()).unwrap();
@@ -72,6 +81,13 @@ pub fn submit_job(mut stream: TcpStream, scheduler: Arc<Scheduler>, size: usize)
         let result = crypt_buffer[index as usize];
         std::mem::drop(crypt_buffer);
         assert!(result == plain ^ key);
+        let mut c = scheduler.counter_write.lock().unwrap();
+        *c += 1;
+        if *c == (size as i32) - 1 {
+            ///liberation du premier wait
+            scheduler.chan_ok_to_write.lock().unwrap().send(()).unwrap();
+            *c = 0;
+        }
         stream.write(&u64_to_array_of_u8(result)).unwrap();
     }
 }
