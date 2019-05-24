@@ -274,6 +274,7 @@ Cela permet à l'utilisateur de créer une nouvelle instance de manager avec Man
 On initialise la valeur de min\_len à une valeur maximum (usize:: max\_value ()).\\
 
 Et puis on implémente la fonction submit\_job:
+
 \begin{lstlisting}
     fn submit_job(&mut self, job: Job) -> Arc<RwLock<Receipt>> {
 
@@ -304,29 +305,24 @@ Et puis on implémente la fonction submit\_job:
                 }
             }
 
-            // if *all* the jobs are done, we must reset min_len
-            let mut counter : u8 = 0;
-            for i in 0..self.jobs.len(){
-                if self.jobs[i].len == 0 {
-                    counter = counter + 1;
-                }
-            }
-            if counter == 8 {
-                self.min_len = usize::max_value();
-            }
+            self.jobs.retain(|x| x.len != 0);
+            
+            self.receipts.retain(|x| x.read().unwrap().status == Status::BeingProcessed);
+
+            self.min_len = self.min_len();
+            if self.jobs.len() == 0 {
+            self.min_len = usize::max_value();
         }
+
         return p;
     }
 }
 \end{lstlisting}
-Dans les grandes lignes, cette fonction, fait la même chose que le code en pseudo-code que l'on a vu au-dessus, elle envoie un job au manager, une fois on a obtenu 8 jobs dans manager, on commence le processus de cryptage, quand on finit le cryptage, on met à jour la taille de tous les jobs. Quand un job a fini (ça veut dire son taille est 0), on met le status de receipt correspondant à "Completed".\\
-Mais il y a quelque différences :
-\begin{itemize}
-    \item Nous créons un reciept, dans la fonction, auquel nous ajoutons un arc. Ce receipt est d'une part stocké dans le manager, mais il est aussi retourner par la fonction pour permettre de récupérer le ciphertext par la suite lorsque que le cryptage aura été effectuer.
-    \item 
-\end{itemize}
-Chaque fois on recois un job, on l'ajoute au manager et on ajoute un nouveau Receipt correspondant.
 
+Dans les grandes lignes, cette fonction, fait la même chose que le code en pseudo-code que l'on a vu au-dessus, elle envoie un job au manager, une fois on a obtenu 8 jobs dans manager, on commence le processus de cryptage, quand on finit le cryptage, on met à jour la taille de tous les jobs. Quand un job a fini (ça veut dire son taille est 0), on met le status de receipt correspondant à "Completed".\\
+Mais il y a différences majeur autour du Receipt. Nous créons un reciept, dans la fonction, auquel nous ajoutons un arc. Ce receipt est d'une part stocké dans le manager, mais il est aussi retourner par la fonction pour permettre de récupérer le ciphertext par la suite lorsque que le cryptage aura été effectuer. \\
+Nous utilisons à la \textit{ligne 30}, une fonction sur les vecteurs rust qui garde tous les éléments qui satisfais  la condition. Donc, ici, on garde dans job, tout les arguments qui ont une taille différente de 0. \\
+Nous faisons la même chose avec le vecteur de receipts en fonctions du status des receipts, et retirons, les receipts qui ont terminé leur cryptage.
 Et quand tous les jobs sont finis, on reinitialise min\_len. 
 
 
