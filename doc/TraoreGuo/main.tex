@@ -18,7 +18,6 @@
 \definecolor{codepurple}{rgb}{0.58,0,0.82}
 \definecolor{backcolour}{rgb}{0.95,0.95,0.92}
 
-\lstinputlisting[language=Rust]
 
 \lstdefinestyle{mystyle}{
     backgroundcolor=\color{backcolour},   
@@ -38,7 +37,7 @@
     showtabs=false,                  
     tabsize=2
 }
- 
+
 \lstset{style=mystyle}
 \title{Rapport PSTL : \\ Cryptographie asynchrone en Rust}
 \author{Guo Ning \\ Traore Djadji }
@@ -245,9 +244,8 @@ La fonction encryptX8, prend 8 chaine de même taille et les crypte en parrallè
 
 Au première abord, nous voulions avoir une approche qui ressemble plus à la structure, que nous devions implémenter. Mais nous avions rapidement rencontré des erreurs de "borrow", causé par le ciphertext et le status d'un job, que nous devions modifié dans la fonction submit\_job. Et M.Dagand nous a ensuite orienté vers l'utilisation d'Arc et a séparé les attributs ciphertext et status de leur structure Job, en les mettant dans une structure à part, la structure Receipt. Ce qui nous permet, de nous passer aussi de la structure args, car nous n'avons plus besoin de stocker les valeurs du job dans une structure étant donnée que nous avons accès au ciphertext et au status grâce au Arc. 
 
-\lstinputlisting[language=rust, firstline=14, lastline=30]{main.rs}
+\lstinputlisting[ firstline=14, lastline=30]{main.rs}
 \subsubsection{Utilisation de Arc<RwLock<T> > }
-\ssubsection
 \begin{lstlisting}
 
 struct Manager {
@@ -310,9 +308,10 @@ Et puis on implémente la fonction submit\_job:
             self.receipts.retain(|x| x.read().unwrap().status == Status::BeingProcessed);
 
             self.min_len = self.min_len();
+            
             if self.jobs.len() == 0 {
-            self.min_len = usize::max_value();
-        }
+                self.min_len = usize::max_value();
+            }
 
         return p;
     }
@@ -322,9 +321,8 @@ Et puis on implémente la fonction submit\_job:
 Dans les grandes lignes, cette fonction, fait la même chose que le code en pseudo-code que l'on a vu au-dessus, elle envoie un job au manager, une fois on a obtenu 8 jobs dans manager, on commence le processus de cryptage, quand on finit le cryptage, on met à jour la taille de tous les jobs. Quand un job a fini (ça veut dire son taille est 0), on met le status de receipt correspondant à "Completed".\\
 Mais il y a différences majeur autour du Receipt. Nous créons un reciept, dans la fonction, auquel nous ajoutons un arc. Ce receipt est d'une part stocké dans le manager, mais il est aussi retourner par la fonction pour permettre de récupérer le ciphertext par la suite lorsque que le cryptage aura été effectuer. \\
 Nous utilisons à la \textit{ligne 30}, une fonction sur les vecteurs rust qui garde tous les éléments qui satisfais  la condition. Donc, ici, on garde dans job, tout les arguments qui ont une taille différente de 0. \\
-Nous faisons la même chose avec le vecteur de receipts en fonctions du status des receipts, et retirons, les receipts qui ont terminé leur cryptage.
-Et quand tous les jobs sont finis, on reinitialise min\_len. 
-
+Nous faisons la même chose avec le vecteur de receipts en fonctions du status des receipts, et retirons, les receipts qui ont terminé leur cryptage. \\
+On met à jour le min\_len et si tous les jobs sont finis, on reinitialise min\_len.
 
 
 \section{Implémentation de fonctions}
@@ -352,8 +350,9 @@ Une fois le status de Receipt est Completed il obtient le verrou en lecture, lir
 \subsection{Fonction flush\_job}
 Nous devions aussi implémenter une fonction flus\_job qui, quand on l'appelle force tout les jobs à se terminer. Nous l'avons donc implémenter ainsi :
 
-\lstinputlisting[language=rust, firstline=116, lastline=143]{main.rs}
+\lstinputlisting[ firstline=116, lastline=143]{main.rs}
 Etant donnée que pour la fonction EncryptX8, toute les chaines doivent avoir la même taille, une des intuition que nous avions suivit est que nous tout les inputs devait avoir la taille de la chaine de taille la plus grande. La fonction max\_len(), renvoit la taille de la chaine la plus grande, ensuite nous utilisons une fonction de Rust sur les vecteurs, resize qui permet de modifié la taille du vecteur jusqu'à l'indice du première argument de la fonction avec le deuxième argument si la taille passé en argument est plus grande que celle du vecteur sur lequel on applique la fonction, sur le plaintext, le ciphertext et la clef.\\
+
 Etant donnée que pour la fonction EncryptX8, toute les chaines doivent avoir la même taille, une des intuition que nous avions suivit est que nous tout les inputs devait avoir la taille de la chaine de taille la plus grande. La fonction max\_len(), renvoit la taille de la chaine la plus grande, ensuite nous utilisons une fonction de Rust sur les vecteurs, resize qui permet de modifié la taille du vecteur jusqu'à l'indice du première argument de la fonction avec le deuxième argument si la taille passé en argument est plus grande que celle du vecteur sur lequel on applique la fonction, sur le plaintext, le ciphertext et la clef. \\
 Nous utilisons ensuite notre fonction de cryptage sur chaque job. Ensuite nous faisons un resize sur le ciphertext de manière à récuperer seulement la partie du message crypter qui nous intéresse.\\
 Et nous finissons en remettant à vide, le vecteur de Job, de Receipts de job et mettons la taille du min\_len à sa valeur par défaut dans notre structure.
