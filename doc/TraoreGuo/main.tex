@@ -2,43 +2,24 @@
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage{listings}     
-\usepackage{color}
+\usepackage{xcolor}
 \usepackage{enumitem}
-\usepackage[frenchb]{babel}
 \usepackage{graphicx}
 \usepackage{eso-pic}
+%\usepackage[frenchb]{babel}
+\usepackage{url}
+
+\usepackage{listings-rust}
+\lstset{language=Rust,style=boxed,extendedchars=false}
 
 \newcommand\AtPageUpperRight[1]{\AtPageUpperLeft{%
    \makebox[\paperwidth][r]{#1}}}
 \usepackage[export]{adjustbox}
 
  
-\definecolor{codegreen}{rgb}{0,0.6,0}
-\definecolor{codegray}{rgb}{0.5,0.5,0.5}
-\definecolor{codepurple}{rgb}{0.58,0,0.82}
-\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
 
+\newcommand{\TODO}[1]{\textcolor{red}{#1}}
 
-\lstdefinestyle{mystyle}{
-    backgroundcolor=\color{backcolour},   
-    commentstyle=\color{codegreen},
-    keywordstyle=\color{magenta},
-    numberstyle=\tiny\color{codegray},
-    stringstyle=\color{codepurple},
-    basicstyle=\footnotesize,
-    breakatwhitespace=false,         
-    breaklines=true,                 
-    captionpos=b,                    
-    keepspaces=true,                 
-    numbers=left,                    
-    numbersep=5pt,                  
-    showspaces=false,                
-    showstringspaces=false,
-    showtabs=false,                  
-    tabsize=2
-}
-
-\lstset{style=mystyle}
 \title{Rapport PSTL : \\ Cryptographie asynchrone en Rust}
 \author{Guo Ning \\ Traore Djadji }
 
@@ -49,18 +30,23 @@
 
 
 \section{Introduction}
-Lors de notre projet nous avons fait face à plusieurs nouvelles notion, propres à Rust, nous allons en définir quelques une.
+Lors de notre projet nous avons fait face à plusieurs notions nouvelles propres à Rust. Nous allons en définir quelques unes.
 
-\subsection{"Ownership"} Rust n'as pas de "garbage collector", et contrairement au C en Rust on ne doit pas allouer et libérer explicitement de la mémoire. Rust utilise une approche alternative et c'est là qu'intervient ce principe d'ownership, selon le Rust book, il y a trois règles principales à l'ownership :
+\TODO{Cette introduction est incomplète. Il faut commencer par présenter le sujet, quelles sont les contributions de votre projet et donner le plan du rapport.}
+
+\subsection{Possession unique} 
+
+Rust n'a pas de ramasse-miette et, contrairement au langage C, \TODO{cett assertion est fausse ou imprécise :} en Rust on ne doit pas allouer et libérer explicitement de la mémoire. Rust utilise une approche alternative et c'est là qu'intervient ce principe de possession unique (``ownership''). Selon le Rust book\TODO{ajouter une référence bibliographique ici}, il y a trois règles principales à l'ownership : \TODO{l'utilisation de franglais est déconseillée : traduire ``ownership'', ``owner'', etc.}
 
 \begin{itemize}  
 \item Chaque valeur est possédée par une variable "owner"
-\item Il ne peut y avoir qu'un seul et unique "owner"
-\item Quand la variable owner sors de son \textit{scope}, la valeur est perdu
+\item Il ne peut y avoir qu'un seul et unique possesseur (``owner'')
+\item Quand la variable owner sort de son \textit{scope}\TODO{portée}, la valeur est perdue
 \end{itemize}
 
-Ce qui permet à Rust d'avoir une gestion de la mémoire efficace et sure. Car Rust alloue automatiquement l'espace nécessaire sur la pile pour les variables par défault, et toute les données stockée sur la pile doivent avoir une taille connu à la compilation. Et donc, lorsqu'une variable est défini, celle ci va sur la pile et lorsque l'on sort de son "scope", cette variable est détruite.
-En Rust, il y a aussi une notion de "tas" mémoire, lorsque l'on met une variable, dont nous ne connaissons pas la taille à la compilation, sur le tas, on demande au système de nous allouer de la mémoire pour cette variable et le système nous renvoi un pointeur à l'adresse où sera la variable.
+Ce qui permet à Rust d'avoir une gestion de la mémoire efficace et sûre. Car Rust alloue automatiquement l'espace nécessaire sur la pile pour les variables par défault, et toute les données stockée sur la pile doivent avoir une taille connue à la compilation. Et donc, lorsqu'une variable est défini, celle-ci va sur la pile et lorsque l'on sort de son scope, cette variable est détruite\TODO{pourquoi?}. 
+
+En Rust, il y a aussi une notion de tas, lorsque l'on met sur le tas une variable dont nous ne connaissons pas la taille à la compilation, on demande au système de nous allouer de la mémoire pour cette variable et le système nous renvoie un pointeur à l'adresse où sera la variable.
 
 \begin{lstlisting}
 fn main() {
@@ -78,14 +64,21 @@ fn foo(y : u8){
 }
 \end{lstlisting}
 
-Décomposons l'exemple si dessus : \\
-Dans notre main, y possède la valeur 5, on l'ajoute à la pile et à la \textit{ligne 3}, on entre dans un autre scope, on ajoute donc x qui possèdent la valeur 10 à la pile. Mais à la  \textit{ligne 5}, on sors du scope, donc on supprime x de la pile. \\
-Lorsqu'à la \textit{ligne 10}, on entre dans la fonction foo, à qui on passe y en argument, on stocke sur la pile a et b, possédant les variables 12 et 45 respectivement. Et lorsque l'on sort du scope de foo, on supprime a et b du stack mais on pert aussi l'ownership de y car, il ne peut y a voir qu'un seul owner par variable et lorsque l'on passe y en argument de la fonction, le y présent dans le main perd l'ownership de la variable, on ne peut donc plus utiliser y dans le main après la fonction foo. \\
-Lorsque l'on  arrive à la \textit{ligne 7}, on écrit s possèdant un pointeur, pointant vers l'adresse mémoire de ce string sur la pile mais, la chaine de caractères sera écrite sur le tas.
+\TODO{Relire pour corriger les accords en genre et en nombre !}
 
-\subsection{"References" et "Borrowing"}
+Décomposons l'exemple si dessus :
+\TODO{Utiliser la commande lstinline pour citer du code dans le corps du texte.}
+\begin{itemize}
+\item Dans la fonction \lstinline!main!, y\TODO{utiliser lstinline pour y ici, etc.} possède la valeur 5, on l'ajoute à la pile et à la \textit{ligne 3}, on entre dans un autre scope, on ajoute donc x qui possède la valeur 10 à la pile. Mais à la  \textit{ligne 5}, on sort du scope, donc on supprime x de la pile. 
+\item Lorsqu'à la \textit{ligne 10}, on entre dans la fonction foo, à qui on passe y en argument, on stocke sur la pile a et b, possédant les variables 12 et 45 respectivement. Et lorsque l'on sort du scope de foo, on supprime a et b du stack\TODO{pile} mais on pert aussi l'ownership de y car, il ne peut y a voir qu'un seul owner par variable et lorsque l'on passe y en argument de la fonction, le y présent dans le main perd l'ownership de la variable, on ne peut donc plus utiliser y dans le main après la fonction foo\TODO{Dans le code, mettre un bout de code commenté qui illustrerai cette possibilité et préciser que c'est impossible}.
+\item Lorsque l'on  arrive à la \textit{ligne 7}, on écrit s possèdant un pointeur, pointant vers \TODO{je ne comprends pas cette phrase : c'est sur la pile ou dans le tas ? pourquoi ?} l'adresse mémoire de ce string\TODO{chaîne de caractère} sur la pile mais la chaine de caractères sera écrite sur le tas. 
+\end{itemize}
 
-Mais comment faire si nous voulons passer une varaible en argument de fonction, sans perdre l'ownership de cette variable ? Rust proposes de "prêter" la variable grâce à son principe de "borrowing", que l'on note grâce à \textbf{\&}, que l'on appelle "references". Il y a deux type de prêt, le prêt en lecture seule que l'on note grâce à une references qui précèdent, le type de la variable (correspond à x dans l'exemple si dessous) ou la variable qu'elle réferencies (correspond à b dans notre exemple), et le prêt qui nous permet de modifier la variable que l'on note avec \&mut avant, le type de la variable (correspond à z dans notre exemple) ou le nom de la variable (correspond à c dans notre exemple). Pour faire un prêt avec modifications, la variable référenciées doit être elle même mutable, que l'on définie grâce au mot clef \textbf{mut}, car en rust les variables sont de base immutable.
+\subsection{Références et Emprunt}
+
+\TODO{ne pas écrire "foo" mais ``foo''}
+
+Mais comment faire si nous voulons passer une variable en argument de fonction, sans perdre l'ownership de cette variable ? Rust propose de "prêter" la variable grâce à son principe de "borrowing", que l'on note grâce à \textbf{\&}, que l'on appelle "references". \TODO{Toute la fin du paragraphe est indigeste : introduisez un concept puis un autre, pas les deux en même temps ! Et donc donnez deux exemples distincts.} Il y a deux type de prêt, le prêt en lecture seule que l'on note grâce à une reference qui précède, le type de la variable (correspond à x dans l'exemple ci-dessous) ou la variable qu'elle réference (correspond à b dans notre exemple), et le prêt qui nous permet de modifier la variable que l'on note avec \&mut avant, le type de la variable (correspond à z dans notre exemple) ou le nom de la variable (correspond à c dans notre exemple). Pour faire un prêt avec modifications, la variable référencée doit être elle-même mutable, que l'on défini grâce au mot clef \textbf{mut}, car en rust\TODO{pour être cohérent, il faut écrire Rust (R majuscule) partout} les variables sont  immutables par défaut.
 
 \begin{lstlisting}
 fn foo(y : u8, x : &u8, z : &mut u8){
@@ -96,9 +89,12 @@ fn foo(y : u8, x : &u8, z : &mut u8){
 \end{lstlisting}
 
 
-\subsection{Comptage de référence atomique avec Arc<T>}
-Le type Arc$<$T$>$  permet de partager d'une valeur de type T  entre les threads.
-La partie "Atomique" signifie qu’on peut accéder à Arc<T> en toute sécurité à partir de plusieurs threads. \\
+\subsection{Références comptées avec Arc<T>}
+
+\TODO{Remarque générale : vos exemples sont repris texto du Rust book : quel intérêt ? Les relecteurs vont vite se rendre compte qu'ils lisent une traduction (très moyenne) du Rust book\ldots}
+
+Le type \lstinline!Arc<T>!  permet de partager une valeur de type T  entre les threads.
+La partie "atomique" signifie qu’on peut accéder \TODO{qu'est-ce que veux dire ``accèder'' ici ? lecture et/ou écriture ?} à Arc<T> en toute sécurité à partir de plusieurs threads. \\
 Invoquer un clone sur Arc produit une nouvelle instance Arc qui pointe sur la même valeur en augmentant le nombre de références.
 Exemple: 
 \begin{lstlisting}
@@ -109,7 +105,7 @@ let b = Arc::clone(&foo);
 \end{lstlisting}
 Ici, a, b et foo sont tous des Arcs qui pointent vers le même emplacement mémoire.
 Ce code crée une nouvelle référence plutôt que de copier le contenu entier de foo.\\
-Voici un exemple de partage de données immuables entre les threads:
+Voici un exemple de partage de données immutables entre les threads: \TODO{ce n'est pas heureux d'appeler la variable source et la variable protégée du même nom}
 \begin{lstlisting}
 let five = Arc::new(5);
 for _ in 0..10 {
@@ -120,8 +116,9 @@ for _ in 0..10 {
 }
 \end{lstlisting}
 Les références partagées dans Rust interdisent des données modifiables par défaut, et Arc ne fait pas exception: on ne peut pas obtenir de référence modifiable à quelque chose à l'intérieur d'un arc.
-Si on veut pouvoir modifier la valeur, on a besoin d’un type capable d’assurer qu’une seule personne à la fois puisse modifier ce qui est à l’intérieur. Pour cela, on doit utiliser Mutex, RwLock ou l’un des types Atomic.\\
-Voici un exemple d'utilisation d'un Mutex<T> type pour nous permettre de modifier en toute sécurité une valeur partagée entre les threads :
+Si on veut pouvoir modifier la valeur, on a besoin d’un type capable d’assurer qu’une seule personne à la fois puisse modifier ce qui est à l’intérieur. \TODO{quel intérêt de dire ça :} Pour cela, on doit utiliser Mutex, RwLock ou l’un des types Atomic. \TODO{?}
+
+\TODO{On se sert de Mutex dans ce projet ? Je ne crois pas donc ceci ne sert à rien.} Voici un exemple d'utilisation d'un Mutex<T> type pour nous permettre de modifier en toute sécurité une valeur partagée entre les threads :
 \begin{lstlisting}
 fn main() {
     let data = Arc::new(Mutex::new(vec![1, 2, 3]));
@@ -137,9 +134,11 @@ fn main() {
 \end{lstlisting}
 \subsection{Read-write locks: RwLock<T>}
 Envisagez une situation où on a plusieurs lecteurs et un seul auteur. On peut protéger cette ressource avec un \textbf{Mutex}, mais le problème est que le mutex ne fait aucune distinction entre lecteurs et écrivain.
-Chaque thread sera obligé d'attendre, peu importe ce que leurs intentions. \\
-\textbf{RwLock<T>} est une alternative au concept mutex, permettant deux types de verrous: lecture et écriture. Il ne peut y avoir qu’un seul verrou en écriture à la fois, mais plusieurs verrous de lecteur. Le paramètre de type T représente les données protégées par ce verrou. 
-Exemple:
+Chaque thread sera obligé d'attendre, peu importe  leur intention.
+
+\textbf{RwLock<T>} est une alternative au concept mutex, permettant deux types de verrous: lecture et écriture. Il ne peut y avoir qu’un seul verrou en écriture à la fois, mais plusieurs verrous en lecture. Le paramètre de type T représente les données protégées par ce verrou. 
+
+Exemple: \TODO{Il serait plus élégant de mettre ces bouts de code dans des figures \url{https://en.wikibooks.org/wiki/LaTeX/Floats,_Figures_and_Captions}}
 \begin{lstlisting}
 let lock = RwLock::new(5);
 // plusieurs lecteurs peuvent lire a la fois
@@ -155,8 +154,9 @@ let lock = RwLock::new(5);
     *w += 1;
     assert_eq!(*w, 6);
 } 
-
 \end{lstlisting}
+
+\TODO{Le code ci-dessus est ridicule : c'est un code séquentiel donc il n'y a aucune concurrence. Écrire avec des threads multiples.}
 Les verrous de lecture sont déposés à ligne 8 et le verrou en écriture est déposé quand il sort de la portée en ligne 14 à la fin.\\
 La fonction read a une signature :
 \begin{lstlisting}
@@ -168,12 +168,13 @@ La fonction write a une signature similaire :
 pub fn write(&self) -> LockResult<RwLockWriteGuard<T>>
 \end{lstlisting}
 Cette fonction verrouille ce rwlock avec un accès exclusif en écriture, bloquant le thread actuel tant que d'autres auteur ou lecteurs auront actuellement accès au verrou.
+\TODO{Clarifier cette phrase, je ne comprends pas ce qu'elle veut dire :}
 Retourne un garde RAII qui libérera l'accès partagé de ce thread une fois qu'il sera déposé.
 
 
 \section{Implémentation de différentes structure}
     Nous devions implémenter trois structures différentes à partir d'un pseudo code et d'un code C :
-\begin{lstlisting}[language = C]
+\begin{lstlisting}[language=C]
 struct manager {
 	struct aes_args args;
 	int lens[8];
@@ -198,13 +199,18 @@ struct aes_job {
 }
 \end{lstlisting}
 
-La structure job contient la chaine de caractère que nous voulons crypter, son vecteur d'initialisation, sa clef aisni qu'un status, pour nous permettre de recupérer le message crypter lorsque le cryptage a été effectuer.
+\TODO{Il faut expliquer l'objectif global du programme et donner sa spécification informelle.}
+\TODO{Il faut expliquer la spécificité de la primitive crypto sous-jacente, qui est parallèle par construction.}
+\TODO{Expliquer pourquoi le pseudo-code est écrit en pseudo-C et ce que cela veut dire quand on va écrire le programme Rust.}
+
+
+La structure job contient la chaine de caractère que nous voulons crypter, son vecteur d'initialisation, sa clef ainsi qu'un bit de statut, pour nous permettre de recupérer le message crypter lorsque le cryptage a été effectuer.
 \\
-La structure args stocke les différentes entrées des Jobs dans des tableaux.
+La structure args stocke les différentes entrées des Jobs\TODO{tâches} dans des tableaux.
 \\
-La structure manager quand a elle, permet de gérer les différents job, grâce à un aes\_args et, grâce à sa fonction submit\_job permet de lancer le cryptage sur tout les jobs, lorsque l'on a atteint le nombre de job requis.
+La structure manager quant à elle, permet de gérer les différents job, grâce à un aes\_args et, grâce à sa fonction submit\_job permet de lancer le cryptage sur tout les jobs, lorsque l'on a atteint le nombre de job requis.
 \\
-Pseudo code de submit\_job :
+Pseudo code de submit\_job :\TODO{certaines lignes sont trop longues.}
 \begin{lstlisting}
 submit_job(struct manager *state, struct aes_job *job){
 	lane <- getUnusedLane(sate->unused_lanes())
@@ -232,17 +238,17 @@ submit_job(struct manager *state, struct aes_job *job){
 }
 \end{lstlisting}
 
-La fonction submit\_job, permet d'envoyer un job au manager, qui le stockera dans le aes\_args, à l'indice que unused\_lane indiquera, étant donnée que unused\_lane contient le ou les indices du tableau qui sont vide et peuvent être utilisé. Si unused\_lanes est vide, cela siginifie que nous avons huit job, le nombre requis pour commencer le processus de cryptage.
-Nous lançons donc une boucle sur args qui cryptera chaque input, jusqu'à l'indice de la taille de la chaine ayant la plus petite taille parmi les huit job. \\
-Par exemple, si nous avons huit job et que les tailles des jobs sont [15; 25; 36; 10; 58; 60; 70; 35], nous ferons une boucle qui cryptera chaque input de l'indice 0 à l'indice 10, car 10 est la plus petite taille parmi les jobs. \\
-Ensuite on met à jour toute les tailles des chaine de caratère , en leur soustrayant la taille de la plus petite chaine. Si nous reprenons notre exmple, nous allons soustraire 10 à toute les autres tailles, ce qui nous donnerai, [5; 15; 26; 0; 54; 50; 60; 25].\\
-Si une des taille est à 0, on modifie son statut et on retire ce job de notre manager.\\
-La fonction encryptX8, prend 8 chaine de même taille et les crypte en parrallèle, mais dans notre implémentation, nous avons utilisé une fausse fonction de cryptage.
+La fonction submit\_job, permet d'envoyer un job au manager, qui le stockera dans le aes\_args, à l'indice que unused\_lane indiquera, étant donnée que unused\_lane contient le ou les indices du tableau qui sont vides et peuvent être utilisés. Si unused\_lanes est vide, cela siginifie que nous avons huit jobs, le nombre requis pour commencer le processus de cryptage\TODO{on ne dit pas ``cryptage'' ou ``décryptage'' mais ``chiffrement''}.
+Nous lançons donc une boucle sur args qui cryptera chaque input, jusqu'à l'indice de la taille de la chaine\TODO{chaîne} ayant la plus petite taille parmi les huit job. \\
+Par exemple, si nous avons huit jobs et que les tailles des jobs sont [15; 25; 36; 10; 58; 60; 70; 35], nous ferons une boucle qui cryptera chaque input de l'indice 0 à l'indice 10, car 10 est la plus petite taille parmi les jobs. \\
+Ensuite on met à jour toute les tailles des chaine de caratère , en leur soustrayant la taille de la plus petite chaine. Si nous reprenons notre exemple, nous allons soustraire 10 à toute les autres tailles, ce qui donnera [5; 15; 26; 0; 54; 50; 60; 25].\\
+Si une des taille est à 0, on modifie son statut et on retire ce job de notre manager\TODO{est-ce que le manager a été défini précédemment ?}.\\
+La fonction encryptX8, prend 8 chaines de même taille et les crypte en parrallèle, mais \TODO{inutile de préciser cela : c'est juste pour simplifier le debug} dans notre implémentation, nous avons utilisé une fausse fonction de cryptage. 
 
 \subsection{Notre approche}
 \subsubsection{Utilisation de Arc<T>  }
 
-Au première abord, nous voulions avoir une approche qui ressemble plus à la structure, que nous devions implémenter. Mais nous avions rapidement rencontré des erreurs de "borrow", causé par le ciphertext et le status d'un job, que nous devions modifié dans la fonction submit\_job. Et M.Dagand nous a ensuite orienté vers l'utilisation d'Arc et a séparé les attributs ciphertext et status de leur structure Job, en les mettant dans une structure à part, la structure Receipt. Ce qui nous permet, de nous passer aussi de la structure args, car nous n'avons plus besoin de stocker les valeurs du job dans une structure étant donnée que nous avons accès au ciphertext et au status grâce au Arc. 
+Au première abord, \TODO{tout cela est très confus : donnez votre code initial et expliquez le soucis} nous voulions avoir une approche qui ressemble plus à la structure que nous devions implémenter. Mais nous avions rapidement rencontré des erreurs de "borrow", causé par le ciphertext et le status d'un job, que nous devions modifié dans la fonction submit\_job. Et M.Dagand nous a ensuite orienté vers l'utilisation d'Arc et a séparé les attributs ciphertext et status de leur structure Job, en les mettant dans une structure à part, la structure Receipt. Ce qui nous permet, de nous passer aussi de la structure args, car nous n'avons plus besoin de stocker les valeurs du job dans une structure étant donnée que nous avons accès au ciphertext et au status grâce au Arc. 
 
 \lstinputlisting[ firstline=14, lastline=30]{main.rs}
 \subsubsection{Utilisation de Arc<RwLock<T> > }
@@ -254,7 +260,7 @@ struct Manager {
     receipts: Vec<Arc<RwLock<Receipt>>>,
 }
 \end{lstlisting}
-Pour la structure de Manager, on a utilisé le type Arc<RwLock<T> > pour représenter Receipt, l'avantage d'utiliser ce type est que cela permet à un nombre quelconque de lecteurs d’acquérir Receipt pour lire le ciphertext dans Receipt tant qu’un écrivain ne le détiendra pas.\\
+Pour la structure de Manager, on a utilisé le type Arc<RwLock<T> > pour représenter Receipt, l'avantage d'utiliser ce type est que cela permet à un nombre quelconque de lecteurs d’acquérir Receipt pour lire le ciphertext dans Receipt tant qu’un écrivain ne le détient pas.\\
 \subsubsection{Implementation de Manager}
 Dans implementation de Manager, d'abord, on a associée une new() fonction qui fait l'initialisation comme ci-dessous : 
 \begin{lstlisting}
@@ -271,7 +277,7 @@ impl Manager {
 Cela permet à l'utilisateur de créer une nouvelle instance de manager avec Manager:: new().
 On initialise la valeur de min\_len à une valeur maximum (usize:: max\_value ()).\\
 
-Et puis on implémente la fonction submit\_job:
+Et puis on implémente la fonction submit\_job:\TODO{Certaines lignes sont trop longues. Il faudrait présenter le code en blocs plus petits.}
 
 \begin{lstlisting}
     fn submit_job(&mut self, job: Job) -> Arc<RwLock<Receipt>> {
@@ -318,16 +324,23 @@ Et puis on implémente la fonction submit\_job:
 }
 \end{lstlisting}
 
-Dans les grandes lignes, cette fonction, fait la même chose que le code en pseudo-code que l'on a vu au-dessus, elle envoie un job au manager, une fois on a obtenu 8 jobs dans manager, on commence le processus de cryptage, quand on finit le cryptage, on met à jour la taille de tous les jobs. Quand un job a fini (ça veut dire son taille est 0), on met le status de receipt correspondant à "Completed".\\
-Mais il y a différences majeur autour du Receipt. Nous créons un reciept, dans la fonction, auquel nous ajoutons un arc. Ce receipt est d'une part stocké dans le manager, mais il est aussi retourner par la fonction pour permettre de récupérer le ciphertext par la suite lorsque que le cryptage aura été effectuer. \\
-Nous utilisons à la \textit{ligne 30}, une fonction sur les vecteurs rust qui garde tous les éléments qui satisfais  la condition. Donc, ici, on garde dans job, tout les arguments qui ont une taille différente de 0. \\
-Nous faisons la même chose avec le vecteur de receipts en fonctions du status des receipts, et retirons, les receipts qui ont terminé leur cryptage. \\
-On met à jour le min\_len et si tous les jobs sont finis, on reinitialise min\_len.
+\TODO{renommer la fonction \lstinline!fake_encrypt! par \lstinline!encryptX8!, qui a un nom moins douteux.}
 
+\TODO{Ce paragraphe ne sert à rien : ce n'est qu'une paraphrase en Français du code Rust. Il est plus important d'expliquer \emph{en quoi} ce code est différent du pseudo-code C.} Dans les grandes lignes, cette fonction, fait la même chose que le code en pseudo-code que l'on a vu au-dessus, elle envoie un job au manager, une fois on a obtenu 8 jobs dans manager, on commence le processus de cryptage, quand on finit le cryptage, on met à jour la taille de tous les jobs. Quand un job a fini (ça veut dire son taille est 0), on met le status de receipt correspondant à "Completed".\\
+Mais il y a différences majeur autour du Receipt. Nous créons un receipt dans la fonction auquel nous \TODO{``ajouter un arc''? qu'est-ce que cela veut dire ?} ajoutons un arc. Ce receipt est d'une part stocké dans le manager, mais il est aussi retourner par la fonction pour permettre de récupérer le ciphertext par la suite lorsque que le cryptage aura été effectuer.
+
+Nous utilisons à la \textit{ligne 30}, une fonction sur les vecteurs rust qui garde tous les éléments qui satisfont  la condition. On garde donc dans job tous les arguments qui ont une taille supérieure à 0.
+
+Nous faisons la même chose avec le vecteur de receipts en fonctions du status des receipts, et retirons, les receipts dont le chiffrement est terminé.
+
+On met à jour le min\_len et on reinitialise min\_len si tous les jobs sont terminés.
+
+\TODO{où est défini \lstinline!self.min_len()!?}
 
 \section{Implémentation de fonctions}
 \subsection{Fonction Poll}
-On a implémenté une fonction poll comme ci-dessous:
+On a implémenté une fonction poll comme ci-dessous :
+\TODO{au lieu de faire un \lstinline!break! après avoir assigné \lstinline!text!, faire directement un \lstinline!return! de \lstinline!receipt.read().unwrap().ciphertext! !}
 \begin{lstlisting}
 fn poll(receipt : & mut Arc<RwLock<Receipt>>) -> Vec<u8>{
     let mut text : Vec<u8> = Vec::new();
@@ -341,20 +354,30 @@ fn poll(receipt : & mut Arc<RwLock<Receipt>>) -> Vec<u8>{
     }
     return text;
 }\end{lstlisting}
-Cette fonction est bloquante, il fait une attente active, ils vérifient de façon répétée si le status de Receipt est Completed.\\
-Si le receipt est "BeingProcessed", il continue à attendre.\\
-Une fois le status de Receipt est Completed il obtient le verrou en lecture, lire ciphertext dans Receipt et sort de la boucle et envoyer le résultat ensuite.
+Cette fonction est bloquante, \TODO{c'est \emph{une} fonction, faire l'accord en conséquence} il fait une attente active, ils vérifient de façon répétée si le status de Receipt est Completed.
 
+Si le receipt est "BeingProcessed", il continue à attendre.
 
+\TODO{Ce paragraphe n'a aucun intérêt : c'est une paraphrase du code.} Une fois que le status\TODO{statut} de Receipt est marqué comme Completed, il obtient le verrou en lecture, lit le ciphertext dans Receipt et sort de la boucle et envoie le résultat ensuite.
+
+\TODO{Il faut expliquer pourquoi c'est correct ! Qu'est-ce qu'il se passe si d'autres threads essayent de lire leur reçu ? Si un autre thread change le status, etc.}
 
 \subsection{Fonction flush\_job}
-Nous devions aussi implémenter une fonction flus\_job qui, quand on l'appelle force tout les jobs à se terminer. Nous l'avons donc implémenter ainsi :
+Nous devions aussi implémenter une fonction flush\_job qui sert à vider la file de calcule, même si celle-ci ne n'est pas pleine. Nous l'avons donc implémenter ainsi :
 
 \lstinputlisting[ firstline=116, lastline=143]{main.rs}
-Etant donnée que pour la fonction EncryptX8, toute les chaines doivent avoir la même taille, une des intuition que nous avions suivit est que nous tout les inputs devait avoir la taille de la chaine de taille la plus grande. La fonction max\_len(), renvoit la taille de la chaine la plus grande, ensuite nous utilisons une fonction de Rust sur les vecteurs, resize qui permet de modifié la taille du vecteur jusqu'à l'indice du première argument de la fonction avec le deuxième argument si la taille passé en argument est plus grande que celle du vecteur sur lequel on applique la fonction, sur le plaintext, le ciphertext et la clef.\\
+Etant donnée que pour la fonction \lstinline!encryptX8!, toute les chaines doivent avoir la même taille, une des intuition que nous avions suivi est que toutes les inputs\TODO{entrées} doivent avoir la taille de la chaine de taille la plus grande. La fonction max\_len(), renvoit la taille de la chaine la plus grande, ensuite nous utilisons une fonction de Rust sur les vecteurs, resize qui permet de modifier la taille du vecteur jusqu'à l'indice du première argument de la fonction avec le deuxième argument si la taille passé en argument est plus grande que celle du vecteur sur lequel on applique la fonction, sur le plaintext, le ciphertext et la clef.\\
 
-Etant donnée que pour la fonction EncryptX8, toute les chaines doivent avoir la même taille, une des intuition que nous avions suivit est que nous tout les inputs devait avoir la taille de la chaine de taille la plus grande. La fonction max\_len(), renvoit la taille de la chaine la plus grande, ensuite nous utilisons une fonction de Rust sur les vecteurs, resize qui permet de modifié la taille du vecteur jusqu'à l'indice du première argument de la fonction avec le deuxième argument si la taille passé en argument est plus grande que celle du vecteur sur lequel on applique la fonction, sur le plaintext, le ciphertext et la clef. \\
+Etant donnée que pour la fonction EncryptX8, toute les chaines doivent avoir la même taille, une des intuition que nous avions suivit est que nous tout les inputs devait avoir la taille de la chaine de taille la plus grande. La fonction max\_len(), renvoit la taille de la chaine la plus grande, ensuite nous utilisons une fonction de Rust sur les vecteurs, resize qui permet de modifié la taille du vecteur jusqu'à l'indice du première argument de la fonction avec le deuxième argument si la taille passé en argument est plus grande que celle du vecteur sur lequel on applique la fonction, sur le plaintext, le ciphertext et la clef. 
+
+\TODO{À nouveau, ceci est surtout une paraphrase du code.}
 Nous utilisons ensuite notre fonction de cryptage sur chaque job. Ensuite nous faisons un resize sur le ciphertext de manière à récuperer seulement la partie du message crypter qui nous intéresse.\\
 Et nous finissons en remettant à vide, le vecteur de Job, de Receipts de job et mettons la taille du min\_len à sa valeur par défaut dans notre structure.
+
+
+\section{Évaluation \& Conclusion}
+
+\TODO{Ajouter un benchmark quantifiant l'overhead ajouté par ce runtime.}
+\TODO{Rédiger une conclusion}
 
 \end{document}
