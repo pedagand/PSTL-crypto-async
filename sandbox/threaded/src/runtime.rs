@@ -1,32 +1,28 @@
-use crate::{Cell,Scheduler};
+use web_server::{Scheduler, ResultIndex};
 use std::sync::{Arc, Mutex};
 use std::{thread, time};
-
 
 
 ///Cette partie s'occupe de l'algorithme du scheduler en faisant abstraction de l'architecture
 /// client/serveur, les keys et plains sont donc générés auparavant.
 
-pub fn demo_submit_job(buf: Arc<Mutex<Vec<Cell>>>, scheduler: Arc<Scheduler>, size: usize,
-                       lock_plain: Arc<Mutex<u64>>, lock_key: Arc<Mutex<u64>>) {
-
+pub fn submit_job(scheduler: Arc<Scheduler>, size: usize,
+                  lock_plain: Arc<Mutex<u64>>, lock_key: Arc<Mutex<u64>>) -> ResultIndex {
     let mut cpt = scheduler.counter_index.lock().unwrap();
     if *cpt == -1 {
-        if size != 1 {
-            ///  Ce premier wait empêche d'autres threads d'écrire dans le buffer
-            /// tant que les premières tâches n'ont pas fini de lire le résultat calculé par la
-            /// dernière thread. L'attente est donc terminée à la ligne 67, lorsque la variable
-            /// counter_write, qui sert normalement de compteur pour le nombre de résultat envoyé
-            /// au client, atteint size - 1.
-            scheduler.chan_wait_to_write.lock().unwrap().recv().unwrap();
-        }
+        ///  Ce premier wait empêche d'autres threads d'écrire dans le buffer
+    /// tant que les premières tâches n'ont pas fini de lire le résultat calculé par la
+    /// dernière thread. L'attente est donc terminée à la ligne 67, lorsque la variable
+    /// counter_write, qui sert normalement de compteur pour le nombre de résultat envoyé
+    /// au client, atteint size - 1.
+        scheduler.chan_wait_to_write.lock().unwrap().recv().unwrap();
         *cpt = 0;
     }
     let index = *cpt;
     *cpt += 1;
     std::mem::drop(cpt);
     assert!(index >= 0 && index <= size as i32);
-    let mut buff = buf.lock().unwrap();
+    let mut buff = scheduler.buffer.lock().unwrap();
     let plain = lock_plain.lock().unwrap();
     let key = lock_key.lock().unwrap();
     buff[index as usize].key = *key;
@@ -39,7 +35,6 @@ pub fn demo_submit_job(buf: Arc<Mutex<Vec<Cell>>>, scheduler: Arc<Scheduler>, si
     std::mem::drop(key);
 
     if index == size as i32 - 1 {
-
         ///Le deuxième wait, met en attente la dernière thread qui est libéré par le send du
         ///Sender chan_ok_to_read à la ligne 58. Le send est envoyé seulement lorsque la variable
         /// counter_wait, qui est incrémenté après qu'une thread a écrit dans le buffer son plain
@@ -47,14 +42,15 @@ pub fn demo_submit_job(buf: Arc<Mutex<Vec<Cell>>>, scheduler: Arc<Scheduler>, si
         /// d'écrire dans le buffer avant que le dernier commence le calcul.
         scheduler.chan_wait_to_encrypt.lock().unwrap().recv().unwrap();
 
-        let mut buff = buf.lock().unwrap();
+        let mut buff = scheduler.buffer.lock().unwrap();
+        let mut crypt_buffer = scheduler.crypt_buff.write().unwrap();
         for i in 0..(size) {
-            buff[i].plain ^= buff[i].key;
+            crypt_buffer[i] = buff[i].plain ^ buff[i].key;
             thread::sleep(time::Duration::from_millis(1));
         }
-        let result = buff[index as usize].plain;
+        let result = crypt_buffer[index as usize];
         std::mem::drop(buff);
-
+        std::mem::drop(crypt_buffer);
         let mut cpt = scheduler.counter_index.lock().unwrap();
         *cpt = -1;
         std::mem::drop(cpt);
@@ -62,6 +58,7 @@ pub fn demo_submit_job(buf: Arc<Mutex<Vec<Cell>>>, scheduler: Arc<Scheduler>, si
             ///liberation du troisieme wait
             scheduler.chan_ok_to_read.lock().unwrap().send(()).unwrap();
         }
+        return ResultIndex { result, index };
     } else {
         let mut c_wait = scheduler.counter_wait.lock().unwrap();
         *c_wait += 1;
@@ -75,10 +72,8 @@ pub fn demo_submit_job(buf: Arc<Mutex<Vec<Cell>>>, scheduler: Arc<Scheduler>, si
         /// dernière thread finisse de faire le calcul. Ce point de synchronisation  met donc en
         /// attente les thread pendant le temps du calcul.
         scheduler.chan_wait_to_read.lock().unwrap().recv().unwrap();
-        let buff = buf.lock().unwrap();
-        let result = buff[index as usize].plain;
-        std::mem::drop(buff);
-
+        let mut crypt_buffer = scheduler.crypt_buff.read().unwrap();
+        let result = crypt_buffer[index as usize];
         assert!(result == local_plain ^ local_key);
         let mut c = scheduler.counter_write.lock().unwrap();
         *c += 1;
@@ -87,5 +82,6 @@ pub fn demo_submit_job(buf: Arc<Mutex<Vec<Cell>>>, scheduler: Arc<Scheduler>, si
             scheduler.chan_ok_to_write.lock().unwrap().send(()).unwrap();
             *c = 0;
         }
+        return ResultIndex { result, index };
     }
 }

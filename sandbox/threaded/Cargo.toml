@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 rand = "0.6.5"
+web_server = {path = "../web_server"}
 
 [dev-dependencies]
 criterion = "0.2"
